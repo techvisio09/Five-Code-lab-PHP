@@ -41,7 +41,7 @@ define('SITE_BRAND', 'Maventech Software');
 define('SITE_LEGAL', 'Maventech Software');
 define('SITE_PHONE', '1-888-632-9902');
 // Public site URL — used for canonical links, sitemap and structured data (change when moving to your own domain)
-define('SITE_URL', 'https://sales-control-26.preview.emergentagent.com');
+define('SITE_URL', 'https://side-showcase.preview.emergentagent.com');
 // Google Search Console verification — paste your GSC meta-tag code here (content="..." value)
 define('GOOGLE_SITE_VERIFICATION', '');
 define('SITE_EMAIL', 'services@maventechsoftware.com');
