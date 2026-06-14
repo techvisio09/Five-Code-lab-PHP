@@ -12,6 +12,7 @@ $urls = [];
 foreach ([
     ['/', '1.0', 'daily'],
     ['/shop.php', '0.9', 'daily'],
+    ['/articles.php', '0.9', 'daily'],
     ['/reviews.php', '0.7', 'weekly'],
     ['/blog.php', '0.7', 'weekly'],
     ['/about-us.php', '0.6', 'monthly'],

@@ -409,7 +409,7 @@ function seo_generate_sitemap(): int
     $out = [];
     $out[] = '<?xml version="1.0" encoding="UTF-8"?>';
     $out[] = '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">';
-    $static = ['/', '/shop.php', '/about-us.php', '/contact.php', '/blog.php', '/reviews.php', '/page.php?slug=privacy-policy', '/page.php?slug=terms-of-service', '/page.php?slug=refund-policy', '/order-lookup.php'];
+    $static = ['/', '/shop.php', '/articles.php', '/about-us.php', '/contact.php', '/blog.php', '/reviews.php', '/page.php?slug=privacy-policy', '/page.php?slug=terms-of-service', '/page.php?slug=refund-policy', '/order-lookup.php'];
     foreach ($static as $p) {
         $out[] = '  <url><loc>' . esc($base . $p) . '</loc><changefreq>daily</changefreq><priority>0.9</priority></url>';
     }

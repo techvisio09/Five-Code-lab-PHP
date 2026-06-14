@@ -386,6 +386,7 @@ $ogImage = $ogImage ?? site_url() . '/assets/images/fivecodelab-og.png';
         <li class="nav-item"><a class="nav-link fw-semibold" href="contact.php">Request a Quote</a></li>
         <li class="nav-item"><a class="nav-link fw-semibold" href="shop.php" data-testid="nav-shop">Shop</a></li>
         <li class="nav-item"><a class="nav-link fw-semibold" href="blog.php">Blog</a></li>
+        <li class="nav-item"><a class="nav-link fw-semibold" href="articles.php" data-testid="nav-articles">Articles</a></li>
         <li class="nav-item"><a class="nav-link fw-semibold" href="affiliate.php" data-testid="nav-affiliates">Affiliates</a></li>
       </ul>
       <div class="d-flex align-items-center gap-2 flex-wrap">
