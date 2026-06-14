@@ -5948,8 +5948,6 @@ elseif ($tab === 'reviews'):
   $pendingBlog = seo_ai_pending_alert_post();
   $cronCmd     = '0 4 * * *  /usr/bin/php ' . realpath(__DIR__) . '/cron/seo-daily.php >/var/log/seo-daily.log 2>&1';
   $webCronUrl  = rtrim(site_url(), '/') . '/cron/seo-daily.php?token=' . urlencode($cronTok);
-  // CRITICAL: surface LLM budget exhaustion so the operator knows why posts stopped
-  $budgetAlert = setting_get('seo_ai_budget_alert', '');
 
   // Per-market stats for filter chips
   $marketStats = seo_ai_counts_by_market();
@@ -6148,26 +6146,6 @@ elseif ($tab === 'reviews'):
 .ai-feed-blog-cta a:hover { color:#5b21b6; }
 [data-bs-theme="dark"] .ai-feed-blog-cta a { color:#c4b5fd; }
 </style>
-
-  <?php if ($budgetAlert): ?>
-    <div class="card-e mb-3" data-testid="seo-budget-alert" style="border-left:5px solid #dc2626 !important;background:linear-gradient(135deg,#fef2f2,#fee2e2);">
-      <div class="d-flex align-items-start gap-3 p-3">
-        <div style="width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#dc2626,#991b1b);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:18px;flex-shrink:0;"><i class="bi bi-exclamation-octagon-fill"></i></div>
-        <div class="flex-grow-1">
-          <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
-            <strong style="color:#991b1b;">Emergent LLM key budget exceeded</strong>
-            <span class="badge bg-danger">action required</span>
-            <small class="text-muted">· flagged <?= esc(date('M j, Y · g:i a', strtotime($budgetAlert) ?: time())) ?></small>
-          </div>
-          <div class="small" style="color:#7f1d1d;">
-            New AI posts will fail until you top up the Universal Key.
-            Open <strong>Profile → Universal Key → Add Balance</strong> in Emergent to refill (and optionally enable auto top-up so this never happens again).
-            The pipeline picks up automatically once the budget is restored — no code change needed.
-          </div>
-        </div>
-      </div>
-    </div>
-  <?php endif; ?>
 
   <?php if ($pendingBlog): ?>
     <!-- AI auto-publish alert: shows until admin dismisses -->

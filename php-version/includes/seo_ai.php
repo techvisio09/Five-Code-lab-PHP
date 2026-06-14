@@ -85,10 +85,9 @@ function seo_llm_complete(string $system, string $user, int $maxTokens = 600, st
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
         if ($http >= 200 && $http < 300 && $body) break;
-        // Detect "budget exceeded" — DO NOT retry, surface the error globally
+        // Budget exceeded — don't retry; just bail out silently.  The operator
+        // monitors LLM budget themselves; we don't surface a UI alert.
         if ($body && stripos((string)$body, 'budget') !== false && stripos((string)$body, 'exceed') !== false) {
-            $GLOBALS['__seo_llm_budget_exceeded'] = true;
-            try { setting_set('seo_ai_budget_alert', date('c')); } catch (Throwable $e) {}
             break;
         }
         if ($http === 429 || $http >= 500) {
@@ -103,10 +102,6 @@ function seo_llm_complete(string $system, string $user, int $maxTokens = 600, st
         + seo_estimate_tokens($system) + seo_estimate_tokens($user) + seo_estimate_tokens((string)$body);
     if ($http >= 400 || !$body) return '';
     $j = json_decode($body, true);
-    // Clear budget flag if we got a real response
-    if (!empty($j['choices'][0]['message']['content'])) {
-        try { setting_set('seo_ai_budget_alert', ''); } catch (Throwable $e) {}
-    }
     return (string)($j['choices'][0]['message']['content'] ?? '');
 }
 
