@@ -60,6 +60,34 @@ function _pdf_cache_image(string $url): string
 }
 
 /**
+ * Generate a PNG QR code for a given payload, cached locally so we only shell
+ * out to `qrencode` once per unique URL.  Returns the cached path or '' on
+ * failure (PDF still renders without the QR if the binary isn't installed).
+ */
+function _pdf_make_qr(string $payload): string
+{
+    if ($payload === '') return '';
+    $cacheDir = __DIR__ . '/../assets/images/cache/qr';
+    if (!is_dir($cacheDir)) @mkdir($cacheDir, 0775, true);
+    $dst = $cacheDir . '/' . sha1($payload) . '.png';
+    if (is_file($dst) && filesize($dst) > 100) return realpath($dst);
+
+    $bin = trim((string)@shell_exec('command -v qrencode 2>/dev/null'));
+    if ($bin === '' || !is_executable($bin)) return '';
+
+    // -t PNG  PNG output
+    // -s 12   12px per module (sharp at 300×300 cells)
+    // -m 1    1-module quiet border
+    // -l M    medium error correction
+    // -o file output path
+    $cmd = escapeshellcmd($bin)
+         . ' -t PNG -s 12 -m 1 -l M -o ' . escapeshellarg($dst) . ' '
+         . escapeshellarg($payload);
+    @shell_exec($cmd . ' 2>/dev/null');
+    return is_file($dst) && filesize($dst) > 100 ? realpath($dst) : '';
+}
+
+/**
  * Stamp a watermark + tiny Office-app icon strip on every page of a Dompdf
  * document.  page_script() is the only Dompdf approach that reliably draws
  * positioned imagery on each page (CSS position:absolute with negative
@@ -69,8 +97,11 @@ function _pdf_cache_image(string $url): string
  *     (first order item) — a soft, low-opacity hero behind the page body.
  *   • Top ornament strip = tiny Microsoft Office app icons
  *     (Word / Excel / PowerPoint / Outlook / Access) just below the title.
+ *   • Bottom-right QR code = deep-link to the customer's Order History
+ *     entry (order number + email pre-filled).  Anyone holding a printed
+ *     copy can scan to pull a fresh digital PDF on the spot.
  */
-function _pdf_apply_brand_layers(Dompdf $dompdf, string $productImageUrl = ''): void
+function _pdf_apply_brand_layers(Dompdf $dompdf, string $productImageUrl = '', string $qrPayload = ''): void
 {
     $canvas = $dompdf->getCanvas();
     if (!$canvas) return;
@@ -111,7 +142,7 @@ function _pdf_apply_brand_layers(Dompdf $dompdf, string $productImageUrl = ''): 
     }
 
     if (!empty($apps)) {
-        // 26-pt icons spaced 8-pt apart along the bottom-right ornament strip.
+        // 26-pt icons spaced 8-pt apart along the bottom-centre ornament strip.
         // The icons themselves communicate "Compatible with Microsoft Office apps"
         // — no text label is needed (and Dompdf's text() API requires a resolved
         // font object that isn't trivially available inside page_script).
@@ -124,6 +155,17 @@ function _pdf_apply_brand_layers(Dompdf $dompdf, string $productImageUrl = ''): 
             $x = $stripX + $i * ($iconSize + $gap);
             $ap = realpath($ap) ?: $ap;
             $scriptLines[] = "\$pdf->image(" . var_export($ap, true) . ", $x, $stripY, $iconSize, $iconSize);";
+        }
+    }
+
+    // 3) Bottom-right QR — deep links to the customer's Order History entry.
+    if ($qrPayload !== '') {
+        $qrPath = _pdf_make_qr($qrPayload);
+        if ($qrPath) {
+            $qrSize = 64.0;
+            $qrX    = $pageW - 48 - $qrSize;     // 48pt right margin
+            $qrY    = $pageH - 64 - $qrSize - 4; // sits above the app-icon strip
+            $scriptLines[] = "\$pdf->image(" . var_export($qrPath, true) . ", $qrX, $qrY, $qrSize, $qrSize);";
         }
     }
 
@@ -433,13 +475,16 @@ function generate_receipt_pdf(array $order, array $items, ?array $payment = null
     $dompdf = _pdf_dompdf();
     $dompdf->loadHtml($html, 'UTF-8');
     $dompdf->setPaper('letter', 'portrait');
-    // Brand layers: purchased product as soft centre watermark + tiny Office app icon strip
+    // Brand layers: purchased product as soft centre watermark + tiny Office app icon strip + QR
     $heroProductImg = (string)($items[0]['image'] ?? '');
     if ($heroProductImg === '' && !empty($items[0]['product_slug'])) {
         $p = function_exists('get_product') ? get_product($items[0]['product_slug']) : null;
         if ($p && !empty($p['image'])) $heroProductImg = (string)$p['image'];
     }
-    _pdf_apply_brand_layers($dompdf, $heroProductImg);
+    $qrPayload = function_exists('site_url')
+        ? (rtrim(site_url(), '/') . '/order-lookup.php?o=' . urlencode((string)$order['order_number']) . '&e=' . urlencode((string)($order['email'] ?? '')))
+        : '';
+    _pdf_apply_brand_layers($dompdf, $heroProductImg, $qrPayload);
     $dompdf->render();
     return $dompdf->output();
 }
@@ -516,13 +561,16 @@ function generate_invoice_pdf(array $order, array $items): string
     $dompdf = _pdf_dompdf();
     $dompdf->loadHtml($html, 'UTF-8');
     $dompdf->setPaper('letter', 'portrait');
-    // Brand layers: purchased product as soft centre watermark + tiny Office app icon strip
+    // Brand layers: purchased product as soft centre watermark + tiny Office app icon strip + QR
     $heroProductImg = (string)($items[0]['image'] ?? '');
     if ($heroProductImg === '' && !empty($items[0]['product_slug'])) {
         $p = function_exists('get_product') ? get_product($items[0]['product_slug']) : null;
         if ($p && !empty($p['image'])) $heroProductImg = (string)$p['image'];
     }
-    _pdf_apply_brand_layers($dompdf, $heroProductImg);
+    $qrPayload = function_exists('site_url')
+        ? (rtrim(site_url(), '/') . '/order-lookup.php?o=' . urlencode((string)$order['order_number']) . '&e=' . urlencode((string)($order['email'] ?? '')))
+        : '';
+    _pdf_apply_brand_layers($dompdf, $heroProductImg, $qrPayload);
     $dompdf->render();
     return $dompdf->output();
 }
