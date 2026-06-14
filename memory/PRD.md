@@ -48,7 +48,29 @@ Rebrand the existing storefront from "Maventech Software" to **Fivecodelab Softw
   - **Accessibility**: `role="contentinfo"` on footer, ARIA labels on social/map/legal nav, `visually-hidden` label on newsletter input.
 - **Admin credentials**: `services@fivecodelabsoftware.com` / `Fivecode@2026!`
 
-## Latest additions (P3 cleanup)
+## Latest enhancements (2026-06-14 evening)
+
+### Distinct-product daily rotation (hard guarantee)
+- `seo_ai_pick_blog_product_for_market()` now enforces that every day's 5-6 posts cover **5-6 distinct products** (never two posts about the same product in one day, even across different markets).
+- `seo_ai_publish_blog_for_product()` has a hard duplicate-guard at the SQL level — even if two threads race the picker, the second insert is rejected with a clean error.
+
+### Go-Live Checklist (production-readiness audit + on-demand submission)
+- New orange-themed card in the AI Auto-Blogger tab with **8 live checks** (sitemap, robots.txt with all AI crawlers, llms-full.txt, IndexNow key, merchant feed, AI auto-blogger active, daily cron healthy, citation tracker baseline). Real-time score `passing/total` with traffic-light coloring.
+- **"Submit sitemap to Google + Bing + IndexNow now"** big yellow button — fires every public URL (homepage, shop, blog, all products, all categories, all blog posts) at IndexNow which fans out to Bing/Yandex/Naver/Seznam. Also tries the legacy Google + Bing `/ping?sitemap=` endpoints (note: both deprecated in 2023/2025, kept for legacy hosts).
+- Post-launch verification tools (Google Rich Results, Schema.org validator, PageSpeed Insights, Bing Webmaster, Google Search Console, live sitemap).
+
+### Homepage `LocalBusiness` + `Brand` schema (Google Knowledge Panel + AI citations)
+- New `Brand` entity with slogan + description so AI engines treat "Fivecodelab" as a citable named brand.
+- `LocalBusiness` fully populated:
+  - **Parsed PostalAddress**: streetAddress, addressLocality (Moreno Valley), addressRegion (CA), postalCode (92557), addressCountry (US — ISO 3166-1 alpha-2)
+  - **`currenciesAccepted`**: USD, GBP, AUD, CAD (read live from the active regions table)
+  - **`areaServed`**: 4 `Country` entries (US, GB, AU, CA)
+  - **`openingHoursSpecification`**: 2 blocks — weekday Mon-Fri 09:00-18:00 + Saturday 10:00-16:00 (Sunday closed by omission)
+  - **`geo.GeoCoordinates`** + `hasMap` link for Google "near me" answers
+  - **`paymentAccepted`**: Visa, MasterCard, Amex, PayPal, Apple Pay, Google Pay, Cryptocurrency
+- Organization and LocalBusiness both now link to `#brand` entity (single canonical brand identity for AI engines).
+
+## Earlier P3 cleanup
 - **Webmail link removed from footer** (Brand & Support columns). Top trust-bar Webmail link kept.
 - **`merchant-feed.xml` refreshed** — 37 products now exported with rich Google Merchant + Bing Shopping fields: `g:mobile_link`, `g:mpn`, `g:product_type`, `g:item_group_id`, `g:product_highlight` (×4), `g:additional_image_link`, multi-country `g:shipping` (US/GB/CA/AU), `g:max_handling_time`, `g:min_handling_time`, `g:tax`, 5× `g:custom_label_*` (Digital, brand, platform, sale state, category), `g:product_review_count` + `g:product_review_average`, `g:sale_price` + `g:sale_price_effective_date`.
 - **Per-post `Article` JSON-LD** on `blog-post.php` — drives Google Top Stories eligibility + clean AI summarisation: `mainEntityOfPage`, `headline`, `wordCount` (auto-computed), `timeRequired` (auto-computed reading minutes), `articleSection`, `keywords`, `inLanguage`, `isAccessibleForFree`, `author`/`publisher` Organization with 512×512 `ImageObject` logo, `BreadcrumbList`, plus `itemscope` microdata on the `<article>` element.

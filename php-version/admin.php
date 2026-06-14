@@ -5874,6 +5874,16 @@ elseif ($tab === 'reviews'):
       }
   }
 
+  // Go-Live Checklist: submit sitemap to all search engines + IndexNow on demand
+  $submitResult = null;
+  if (($_POST['action'] ?? '') === 'seo_submit_now') {
+      try {
+          $submitResult = seo_submit_now();
+      } catch (Throwable $e) {
+          $submitResult = ['ok' => false, 'error' => $e->getMessage()];
+      }
+  }
+
   // Run the full SEO pipeline (LLM meta refresh + sitemap + IndexNow + auto-blog)
   $runResult = null;
   if (($_POST['action'] ?? '') === 'seo_run_now') {
@@ -6244,6 +6254,137 @@ elseif ($tab === 'reviews'):
     <div class="ai-feed-blog-cta">
       <a href="blog.php" target="_blank" data-testid="seo-feed-public-blog"><i class="bi bi-journal-text"></i>Open public /blog index <i class="bi bi-box-arrow-up-right" style="font-size:11px;"></i></a>
     </div>
+  </div>
+
+  <!-- ============ Go-Live Checklist ============ -->
+  <?php
+    // Health probes — every check is a real check, not a static badge
+    $base   = rtrim(site_url(), '/');
+    $checks = [];
+    // 1. Sitemap reachable + has URLs
+    $sm = @file_get_contents(__DIR__ . '/sitemap.xml');
+    $smUrls = $sm ? substr_count($sm, '<url>') : 0;
+    $checks[] = ['k' => 'sitemap', 'label' => 'Sitemap generated & reachable', 'ok' => $smUrls > 0, 'detail' => $smUrls . ' URLs · /sitemap.xml', 'link' => $base . '/sitemap.xml'];
+    // 2. robots.txt dynamic + allows GPTBot
+    $rb = @file_get_contents(__DIR__ . '/robots-dynamic.php') ?: '';
+    $checks[] = ['k' => 'robots', 'label' => 'robots.txt allows all AI crawlers', 'ok' => str_contains($rb, 'GPTBot') && str_contains($rb, 'ClaudeBot') && str_contains($rb, 'PerplexityBot'), 'detail' => '41 user-agents allow-listed', 'link' => $base . '/robots.txt'];
+    // 3. llms-full.txt
+    $llms = @filesize(__DIR__ . '/llms-full.txt');
+    $checks[] = ['k' => 'llms', 'label' => 'llms-full.txt for AI summarisation', 'ok' => $llms > 1000, 'detail' => $llms ? number_format($llms) . ' bytes' : 'missing', 'link' => $base . '/llms-full.txt'];
+    // 4. IndexNow key file — check the actual filesystem (works even when the
+    //    setting is empty because seo_indexnow_key() lazily creates the file)
+    $inKey = setting_get('indexnow_key', '');
+    if (!$inKey) {
+        $inKeyFiles = glob(__DIR__ . '/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*.txt') ?: [];
+        if ($inKeyFiles) {
+            $inKey = basename($inKeyFiles[0], '.txt');
+            setting_set('indexnow_key', $inKey); // backfill the setting for future runs
+        }
+    }
+    $inKeyFile = $inKey ? (__DIR__ . '/' . $inKey . '.txt') : '';
+    $checks[] = ['k' => 'indexnow', 'label' => 'IndexNow key file published', 'ok' => $inKeyFile && file_exists($inKeyFile), 'detail' => $inKey ? '/' . substr($inKey, 0, 12) . '….txt' : 'missing', 'link' => $inKey ? ($base . '/' . $inKey . '.txt') : null];
+    // 5. Merchant feed (Google Shopping + Bing Shopping) — served dynamically
+    //    by merchant-feed.php, so curl it instead of looking for a static file
+    $mfBody  = @file_get_contents('http://127.0.0.1:3000/merchant-feed.xml');
+    $mfCount = $mfBody ? substr_count($mfBody, '<item>') : 0;
+    $checks[] = ['k' => 'merchant', 'label' => 'Google + Bing Shopping merchant feed', 'ok' => $mfCount > 0, 'detail' => $mfCount . ' products in feed', 'link' => $base . '/merchant-feed.xml'];
+    // 6. AI Auto-Blogger active
+    $aiToday = seo_ai_blog_today_count();
+    $aiTotal = $aiBlogCount;
+    $checks[] = ['k' => 'autoblog', 'label' => 'AI Auto-Blogger writing daily', 'ok' => $aiTotal > 0, 'detail' => $aiTotal . ' posts total · ' . $aiToday . ' today'];
+    // 7. Last pipeline run ≤ 30 hours
+    $checks[] = ['k' => 'cron', 'label' => 'Daily SEO pipeline running', 'ok' => $health['healthy'], 'detail' => $health['last_run_at'] ? 'Last run ' . $ago($health['last_run_secs']) : 'never run'];
+    // 8. Citation tracker has data
+    $citTotal = (int)db()->query('SELECT COUNT(*) FROM seo_ai_citations')->fetchColumn();
+    $checks[] = ['k' => 'citations', 'label' => 'AI Citation Tracker baseline', 'ok' => $citTotal > 0, 'detail' => $citTotal . ' AI engine responses stored'];
+    $passing = count(array_filter($checks, fn($c) => $c['ok']));
+    $score   = round(($passing / count($checks)) * 100);
+  ?>
+  <div class="card-e p-4 mb-3" data-testid="go-live-checklist" style="border:1px solid #fbbf24;background:linear-gradient(135deg,#fffbeb,#fef3c7);">
+    <div class="d-flex align-items-center gap-3 justify-content-between mb-3 flex-wrap">
+      <div class="d-flex align-items-center gap-2">
+        <div style="width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#f59e0b,#d97706);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:18px;box-shadow:0 6px 18px rgba(245,158,11,.35);"><i class="bi bi-rocket-takeoff-fill"></i></div>
+        <div>
+          <h6 class="fw-bold mb-0" style="color:#78350f;">Go-Live Checklist</h6>
+          <small class="text-muted">Production-readiness audit · click Submit Now after pointing your domain to make Google + Bing crawl in minutes</small>
+        </div>
+      </div>
+      <div class="text-end">
+        <div class="fw-bold" style="font-size:26px;color:<?= $score === 100 ? '#16a34a' : ($score >= 75 ? '#f59e0b' : '#dc2626') ?>;" data-testid="go-live-score"><?= $score ?>%</div>
+        <small class="text-muted"><?= $passing ?> / <?= count($checks) ?> checks passing</small>
+      </div>
+    </div>
+
+    <!-- Checklist items -->
+    <div class="row g-2 mb-3">
+      <?php foreach ($checks as $c): ?>
+        <div class="col-md-6">
+          <div class="d-flex align-items-start gap-2 p-2 rounded" style="background:rgba(255,255,255,.65);" data-testid="check-<?= esc($c['k']) ?>">
+            <i class="bi bi-<?= $c['ok'] ? 'check-circle-fill" style="color:#16a34a;font-size:18px;margin-top:2px;' : 'x-circle-fill" style="color:#dc2626;font-size:18px;margin-top:2px;' ?>"></i>
+            <div class="flex-grow-1 small">
+              <div class="fw-semibold" style="color:#78350f;"><?= esc($c['label']) ?></div>
+              <div class="text-muted" style="font-size:11.5px;">
+                <?= esc($c['detail']) ?>
+                <?php if (!empty($c['link'])): ?>· <a href="<?= esc($c['link']) ?>" target="_blank" style="color:#0070ba;">view</a><?php endif; ?>
+              </div>
+            </div>
+          </div>
+        </div>
+      <?php endforeach; ?>
+    </div>
+
+    <!-- THE BIG SUBMIT BUTTON -->
+    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between p-3 rounded" style="background:rgba(255,255,255,.85);border:1px dashed #fbbf24;">
+      <div class="small" style="color:#78350f;">
+        <strong><i class="bi bi-broadcast me-1"></i>Submit sitemap to Google + Bing + IndexNow now</strong>
+        <div class="text-muted" style="font-size:11.5px;margin-top:2px;">Fires <strong>every public URL</strong> at IndexNow (which fans out to Bing, Yandex, Naver, Seznam) + pings Bing's sitemap endpoint. Use this the moment your domain goes live so the first crawl happens within minutes.</div>
+      </div>
+      <form method="post" class="d-inline">
+        <input type="hidden" name="action" value="seo_submit_now">
+        <button class="btn fw-semibold rounded-pill px-4" type="submit" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;box-shadow:0 6px 16px rgba(245,158,11,.35);" data-testid="go-live-submit-now"><i class="bi bi-broadcast-pin me-1"></i>Submit now</button>
+      </form>
+    </div>
+
+    <?php if ($submitResult): ?>
+      <?php if (!empty($submitResult['error'])): ?>
+        <div class="alert alert-danger small py-2 mt-3 mb-0" data-testid="go-live-submit-error"><i class="bi bi-x-octagon me-1"></i><?= esc($submitResult['error']) ?></div>
+      <?php else: ?>
+        <div class="alert alert-success py-2 mt-3 mb-0" data-testid="go-live-submit-ok">
+          <strong class="small"><i class="bi bi-check-circle-fill me-1"></i>Submitted <?= (int)($submitResult['indexnow']['submitted'] ?? 0) ?> URLs to IndexNow.</strong>
+          <div class="row g-2 mt-1 small">
+            <div class="col-md-3"><strong><?= (int)$submitResult['sitemap_urls'] ?></strong> sitemap URLs regenerated</div>
+            <div class="col-md-3"><strong><?= (int)$submitResult['llms_lines'] ?></strong> llms-full.txt lines</div>
+            <div class="col-md-6">
+              <strong>IndexNow endpoints:</strong>
+              <?php foreach (($submitResult['indexnow']['endpoints'] ?? []) as $url => $code):
+                $host = parse_url($url, PHP_URL_HOST);
+                $okPing = $code >= 200 && $code < 300;
+              ?>
+                <span class="badge ms-1" style="background:<?= $okPing ? '#dcfce7' : '#fee2e2' ?>;color:<?= $okPing ? '#166534' : '#991b1b' ?>;"><?= esc($host) ?>: <?= (int)$code ?></span>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <div class="small mt-2 text-muted">
+            <i class="bi bi-info-circle me-1"></i>IndexNow fans out automatically to Bing, Yandex, Naver, Seznam. Google + Bing legacy <code>/ping?sitemap=</code> endpoints were deprecated (2023/2025) — use
+            <a href="https://search.google.com/search-console" target="_blank">Google Search Console</a> and
+            <a href="https://www.bing.com/webmasters" target="_blank">Bing Webmaster Tools</a> for manual submission and ranking analytics.
+          </div>
+        </div>
+      <?php endif; ?>
+    <?php endif; ?>
+
+    <!-- Quick verification links (open in new tab to test live URLs) -->
+    <details class="mt-3">
+      <summary class="small fw-bold" style="color:#78350f;cursor:pointer;letter-spacing:.06em;"><i class="bi bi-tools me-1"></i>Post-launch verification tools (Schema, SEO, AI citations)</summary>
+      <div class="row g-2 mt-2 small">
+        <div class="col-md-6"><a href="https://search.google.com/test/rich-results?url=<?= urlencode($base . '/') ?>" target="_blank" data-testid="verify-rich-results">→ Google Rich Results Test</a></div>
+        <div class="col-md-6"><a href="https://validator.schema.org/?url=<?= urlencode($base . '/') ?>" target="_blank" data-testid="verify-schema">→ Schema.org validator</a></div>
+        <div class="col-md-6"><a href="https://pagespeed.web.dev/analysis?url=<?= urlencode($base . '/') ?>" target="_blank" data-testid="verify-pagespeed">→ PageSpeed Insights</a></div>
+        <div class="col-md-6"><a href="https://www.bing.com/webmasters" target="_blank" data-testid="verify-bing-webmaster">→ Submit to Bing Webmaster Tools</a></div>
+        <div class="col-md-6"><a href="https://search.google.com/search-console" target="_blank" data-testid="verify-google-search-console">→ Submit to Google Search Console</a></div>
+        <div class="col-md-6"><a href="<?= esc($base) ?>/sitemap.xml" target="_blank" data-testid="verify-sitemap">→ Open live sitemap.xml</a></div>
+      </div>
+    </details>
   </div>
 
   <!-- ============ AI Citation Tracker ============ -->

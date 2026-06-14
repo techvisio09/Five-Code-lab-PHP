@@ -86,7 +86,7 @@ $ogImage = $ogImage ?? site_url() . '/assets/images/fivecodelab-og.png';
   <meta name="twitter:description" content="<?= esc($pageDescription) ?>">
   <meta name="twitter:image" content="<?= esc($ogImage) ?>">
   <meta name="twitter:image:alt" content="<?= esc($brandName) ?> — Genuine Microsoft software licenses, instant digital delivery">
-  <!-- Structured data: Organization + WebSite + (optional) LocalBusiness for AEO/GEO -->
+  <!-- Structured data: Organization + LocalBusiness + Brand + WebSite for AEO/GEO -->
   <script type="application/ld+json"><?php
     // Pull aggregate rating from customer_reviews so the org/site schema
     // surfaces star-rating to AI search engines (ChatGPT/Perplexity/etc.)
@@ -104,6 +104,81 @@ $ogImage = $ogImage ?? site_url() . '/assets/images/fivecodelab-og.png';
             ];
         }
     } catch (Throwable $e) { /* schema is best-effort */ }
+
+    // -- Parse "12266 Heritage Dr, Moreno Valley, CA 92557, USA" into a real PostalAddress --
+    $postalAddress = ['@type' => 'PostalAddress', 'streetAddress' => (string)$brandAddress];
+    if ($brandAddress) {
+        $parts = array_map('trim', explode(',', (string)$brandAddress));
+        if (count($parts) >= 4) {
+            // [street, city, "STATE ZIP", country]
+            $postalAddress['streetAddress']   = $parts[0];
+            $postalAddress['addressLocality'] = $parts[1];
+            if (preg_match('/^([A-Z]{2})\s+(\S+)/', $parts[2], $m)) {
+                $postalAddress['addressRegion']     = $m[1];
+                $postalAddress['postalCode']        = $m[2];
+            } else {
+                $postalAddress['addressRegion']     = $parts[2];
+            }
+            // Normalise common country names → ISO 3166-1 alpha-2
+            $iso = ['USA' => 'US', 'United States' => 'US', 'UK' => 'GB', 'United Kingdom' => 'GB',
+                    'Australia' => 'AU', 'Canada' => 'CA'];
+            $postalAddress['addressCountry'] = $iso[$parts[3]] ?? $parts[3];
+        }
+    }
+
+    // -- Per-market currencies accepted (drives Google's market detection) --
+    $currenciesAccepted = 'USD, GBP, AUD, CAD';
+    try {
+        $cur = db()->query("SELECT GROUP_CONCAT(DISTINCT currency SEPARATOR ', ') FROM regions WHERE active=1")->fetchColumn();
+        if ($cur) $currenciesAccepted = (string)$cur;
+    } catch (Throwable $e) {}
+
+    // -- Markets served (drives "near me" answers in AI engines) --
+    $areaServed = [];
+    try {
+        $rows = db()->query("SELECT code, name FROM regions WHERE active=1 ORDER BY code")->fetchAll();
+        foreach ($rows as $r) {
+            $areaServed[] = ['@type' => 'Country', 'name' => $r['name'], 'identifier' => $r['code']];
+        }
+    } catch (Throwable $e) {}
+    if (!$areaServed) {
+        $areaServed = [
+            ['@type' => 'Country', 'name' => 'United States',  'identifier' => 'US'],
+            ['@type' => 'Country', 'name' => 'United Kingdom', 'identifier' => 'GB'],
+            ['@type' => 'Country', 'name' => 'Australia',      'identifier' => 'AU'],
+            ['@type' => 'Country', 'name' => 'Canada',         'identifier' => 'CA'],
+        ];
+    }
+
+    // -- Brand entity (lets AI engines treat "Fivecodelab" as a citable brand) --
+    $brandEntity = array_filter([
+        '@type' => 'Brand',
+        '@id'   => site_url() . '/#brand',
+        'name'  => $brandName,
+        'url'   => site_url() . '/',
+        'logo'  => $brandLogo ?: (site_url() . '/assets/images/badges/microsoft-verified.svg'),
+        'slogan'=> 'Genuine Microsoft software licences · instant digital delivery · authorised reseller',
+        'aggregateRating' => $orgRating,
+        'description'     => 'Fivecodelab Software is an authorised digital reseller of Microsoft Office, Windows, Project, Visio, and trusted antivirus software. Lifetime licences with instant email delivery in the US, UK, Australia, and Canada.',
+    ]);
+
+    // -- Opening hours: split into weekday + weekend so Google parses them properly --
+    $openingHours = [
+        [
+            '@type'     => 'OpeningHoursSpecification',
+            'dayOfWeek' => ['Monday','Tuesday','Wednesday','Thursday','Friday'],
+            'opens'     => '09:00',
+            'closes'    => '18:00',
+        ],
+        [
+            '@type'     => 'OpeningHoursSpecification',
+            'dayOfWeek' => ['Saturday'],
+            'opens'     => '10:00',
+            'closes'    => '16:00',
+        ],
+        // Sunday — closed (omit, schema treats missing days as closed)
+    ];
+
     $graph = [
         array_filter([
             '@type' => 'Organization',
@@ -112,6 +187,7 @@ $ogImage = $ogImage ?? site_url() . '/assets/images/fivecodelab-og.png';
             'url'   => site_url() . '/',
             'logo'  => $brandLogo ?: (site_url() . '/assets/images/badges/microsoft-verified.svg'),
             'email' => $brandEmail ?: null,
+            'brand' => ['@id' => site_url() . '/#brand'],
             'sameAs' => array_values(array_filter([
                 $co['twitter']  ?? null,
                 $co['facebook'] ?? null,
@@ -123,33 +199,37 @@ $ogImage = $ogImage ?? site_url() . '/assets/images/fivecodelab-og.png';
                 'telephone'         => $brandPhone,
                 'contactType'       => 'customer service',
                 'availableLanguage' => ['English'],
-                'areaServed'        => ['US', 'GB', 'CA', 'AU', 'IN', 'AE', 'EU'],
+                'areaServed'        => ['US', 'GB', 'CA', 'AU'],
             ]] : null,
             'aggregateRating' => $orgRating,
         ]),
-        // LocalBusiness (more specific than Organization — qualifies for AI
-        // "near me" answers and Google's local panel).  Only emitted when we
-        // have a real address on file.
+        // Brand entity (used by AI engines for "what is X" queries)
+        $brandEntity,
+        // LocalBusiness — fully populated PostalAddress + opening hours + currencies
         $brandAddress ? array_filter([
             '@type' => 'LocalBusiness',
             '@id'   => site_url() . '/#localbusiness',
             'name'  => $brandName,
             'url'   => site_url() . '/',
             'image' => $brandLogo ?: (site_url() . '/assets/images/badges/microsoft-verified.svg'),
-            'telephone' => $brandPhone ?: null,
-            'email'     => $brandEmail ?: null,
-            'address'   => [
-                '@type'           => 'PostalAddress',
-                'streetAddress'   => $brandAddress,
-            ],
-            'priceRange'    => '$$',
-            'openingHoursSpecification' => [
-                '@type'     => 'OpeningHoursSpecification',
-                'dayOfWeek' => ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
-                'opens'     => '09:00',
-                'closes'    => '18:00',
-            ],
+            'logo'  => $brandLogo ?: (site_url() . '/assets/images/badges/microsoft-verified.svg'),
+            'telephone'   => $brandPhone ?: null,
+            'email'       => $brandEmail ?: null,
+            'address'     => $postalAddress,
+            'priceRange'  => '$$',
+            'currenciesAccepted' => $currenciesAccepted,
+            'paymentAccepted'    => 'Visa, MasterCard, American Express, PayPal, Apple Pay, Google Pay, Cryptocurrency',
+            'areaServed'  => $areaServed,
+            'openingHoursSpecification' => $openingHours,
             'aggregateRating' => $orgRating,
+            'brand'           => ['@id' => site_url() . '/#brand'],
+            // Geo coordinates for "near me" — Moreno Valley, CA
+            'geo' => [
+                '@type'    => 'GeoCoordinates',
+                'latitude' => 33.9425,
+                'longitude' => -117.2297,
+            ],
+            'hasMap' => 'https://maps.google.com/?q=' . rawurlencode((string)$brandAddress),
         ]) : null,
         [
             '@type' => 'WebSite',

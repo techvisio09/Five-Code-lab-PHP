@@ -150,6 +150,59 @@ function seo_ping_google_bing_sitemap(): array
     return $out;
 }
 
+/** Full on-demand "Submit to all engines now" — regenerates the sitemap +
+ *  llms-full.txt, submits every public URL to IndexNow (which fans out to
+ *  Bing, Yandex, Seznam, Naver), and pings Google + Bing sitemap endpoints.
+ *  Used by the Go-Live Checklist button.  Returns a structured report.
+ */
+function seo_submit_now(): array
+{
+    seo_ensure_table();
+    $base = rtrim(site_url(), '/');
+
+    // 1. Regenerate sitemap + llms-full
+    $sitemapUrls = seo_generate_sitemap();
+    $llmsLines   = seo_generate_llms_full();
+
+    // 2. Collect every public URL to push: homepage + key pages + every product + every blog post
+    $urls = [
+        $base . '/',
+        $base . '/shop.php',
+        $base . '/blog.php',
+        $base . '/about-us.php',
+        $base . '/contact.php',
+        $base . '/reviews.php',
+        $base . '/order-lookup.php',
+    ];
+    foreach (db()->query('SELECT slug FROM products WHERE ' . active_regions_sql_in('region')) as $p) {
+        $urls[] = $base . '/product.php?slug=' . $p['slug'];
+    }
+    foreach (db()->query('SELECT slug FROM categories') as $c) {
+        $urls[] = $base . '/category.php?slug=' . $c['slug'];
+    }
+    foreach (db()->query('SELECT id FROM blog_posts ORDER BY id DESC LIMIT 100') as $b) {
+        $urls[] = $base . '/blog-post.php?id=' . (int)$b['id'];
+    }
+    $urls = array_values(array_unique($urls));
+
+    // 3. IndexNow (chunked — IndexNow accepts up to 10,000 URLs per request)
+    $indexNow = seo_indexnow_submit($urls);
+
+    // 4. Bing + Google sitemap ping (Google deprecated theirs in 2023 but
+    //    some hosts still proxy it; Bing's still works as of 2026)
+    $pings = seo_ping_google_bing_sitemap();
+
+    return [
+        'ok'            => true,
+        'urls_count'    => count($urls),
+        'sitemap_urls'  => $sitemapUrls,
+        'llms_lines'    => $llmsLines,
+        'indexnow'      => $indexNow,
+        'sitemap_pings' => $pings,
+        'submitted_at'  => date('c'),
+    ];
+}
+
 // --------------------------------------------------------------------
 //  AI meta-generation — one per product + one per blog post
 // --------------------------------------------------------------------
@@ -496,9 +549,10 @@ function seo_ai_blog_today_count_by_market(string $region): int
 
 function seo_ai_pick_blog_product_for_market(string $region): array
 {
-    // Pick the next product that hasn't had an AI blog post in this market in
-    // the last 90 days.  Falls back to the least-recently-covered one to keep
-    // the rotation healthy long-term.
+    // Pick the next product that satisfies BOTH:
+    //  (a) hasn't had an AI blog post in this market in the last 90 days, AND
+    //  (b) hasn't been blogged about TODAY in ANY market — so each day's
+    //      5-6 posts always cover 5-6 distinct products (no duplicates).
     $stmt = db()->prepare(
         "SELECT p.* FROM products p
          WHERE " . active_regions_sql_in('p.region') . "
@@ -507,23 +561,37 @@ function seo_ai_pick_blog_product_for_market(string $region): array
              WHERE region = ?
                AND created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
            )
+           AND p.slug NOT IN (
+             SELECT product_slug FROM seo_ai_blog_log
+             WHERE DATE(created_at) = CURDATE()
+           )
          ORDER BY p.reviews DESC, RAND()
          LIMIT 1"
     );
     $stmt->execute([$region]);
     $row = $stmt->fetch();
     if ($row) return $row;
-    // Fallback — rotate the least recently used product in this market
+
+    // Fallback A — relax the 90-day market cooldown, but ALWAYS keep the
+    // today-uniqueness rule so each day's posts cover distinct products.
     $stmt = db()->prepare(
         "SELECT p.* FROM products p
-         LEFT JOIN seo_ai_blog_log b ON b.product_slug = p.slug AND b.region = ?
          WHERE " . active_regions_sql_in('p.region') . "
-         ORDER BY b.created_at ASC, RAND()
+           AND p.slug NOT IN (
+             SELECT product_slug FROM seo_ai_blog_log
+             WHERE DATE(created_at) = CURDATE()
+           )
+         ORDER BY p.reviews DESC, RAND()
          LIMIT 1"
     );
-    $stmt->execute([$region]);
+    $stmt->execute();
     $row = $stmt->fetch();
-    return $row ?: [];
+    if ($row) return $row;
+
+    // Fallback B — only fires when EVERY product has been blogged about today
+    // (very unlikely with 37+ products and a daily cap of 6).  Return nothing
+    // so the caller stops trying instead of duplicating a post.
+    return [];
 }
 
 /** Keep backwards-compat with the older single-market picker used by the
@@ -575,6 +643,14 @@ function seo_ai_publish_blog_for_product(array $product, string $region = 'US'):
     seo_ensure_table();
     if (empty($product['slug']) || empty($product['name'])) {
         return ['ok' => false, 'error' => 'invalid product'];
+    }
+    // Hard guard — never publish two posts about the same product on the same
+    // calendar day, even across different markets.  Prevents race conditions
+    // and keeps the "different product every day" promise.
+    $dup = db()->prepare("SELECT COUNT(*) FROM seo_ai_blog_log WHERE product_slug = ? AND DATE(created_at) = CURDATE()");
+    $dup->execute([$product['slug']]);
+    if ((int)$dup->fetchColumn() > 0) {
+        return ['ok' => false, 'region' => $region, 'error' => 'product already blogged today: ' . $product['slug']];
     }
     $body = seo_ai_generate_blog_body($product, $region);
     if (empty($body['title']) || empty($body['html'])) {
