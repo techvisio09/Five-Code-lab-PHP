@@ -23,7 +23,7 @@ if (!isset($canonicalUrl)) {
     $canonicalSlug = isset($_GET['slug']) && $_GET['slug'] !== '' ? '?slug=' . urlencode($_GET['slug']) : '';
     $canonicalUrl = site_url() . $canonicalPath . $canonicalSlug;
 }
-$ogImage = $ogImage ?? site_url() . '/assets/images/fivecodelab-og.svg';
+$ogImage = $ogImage ?? site_url() . '/assets/images/fivecodelab-og.png';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -59,6 +59,11 @@ $ogImage = $ogImage ?? site_url() . '/assets/images/fivecodelab-og.svg';
   <meta name="keywords" content="<?= esc($pageKeywords) ?>">
   <?php endif; ?>
   <link rel="canonical" href="<?= esc($canonicalUrl) ?>">
+  <!-- hreflang: English-only catalog today; x-default + en-US both point at the canonical URL.
+       When regional sub-domains/sub-folders go live, additional <link rel="alternate"> rows go here. -->
+  <link rel="alternate" hreflang="en-US"    href="<?= esc($canonicalUrl) ?>">
+  <link rel="alternate" hreflang="en"       href="<?= esc($canonicalUrl) ?>">
+  <link rel="alternate" hreflang="x-default" href="<?= esc($canonicalUrl) ?>">
   <?php if (defined('GOOGLE_SITE_VERIFICATION') && GOOGLE_SITE_VERIFICATION !== ''): ?>
   <meta name="google-site-verification" content="<?= esc(GOOGLE_SITE_VERIFICATION) ?>">
   <?php endif; ?>
@@ -69,10 +74,18 @@ $ogImage = $ogImage ?? site_url() . '/assets/images/fivecodelab-og.svg';
   <meta property="og:description" content="<?= esc($pageDescription) ?>">
   <meta property="og:url" content="<?= esc($canonicalUrl) ?>">
   <meta property="og:image" content="<?= esc($ogImage) ?>">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="<?= esc($brandName) ?> — Genuine Microsoft software licenses, instant digital delivery">
+  <meta property="og:locale" content="en_US">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@fivecodelab">
+  <meta name="twitter:creator" content="@fivecodelab">
   <meta name="twitter:title" content="<?= esc($pageTitle) ?>">
   <meta name="twitter:description" content="<?= esc($pageDescription) ?>">
   <meta name="twitter:image" content="<?= esc($ogImage) ?>">
+  <meta name="twitter:image:alt" content="<?= esc($brandName) ?> — Genuine Microsoft software licenses, instant digital delivery">
   <!-- Structured data: Organization + WebSite + (optional) LocalBusiness for AEO/GEO -->
   <script type="application/ld+json"><?php
     // Pull aggregate rating from customer_reviews so the org/site schema
@@ -179,7 +192,9 @@ $ogImage = $ogImage ?? site_url() . '/assets/images/fivecodelab-og.svg';
   <link href="assets/css/style.css" rel="stylesheet">
   <!-- Branded favicons & web app manifest (improves brand recognition in search results and bookmarks) -->
   <link rel="icon" type="image/svg+xml" href="assets/images/fivecodelab-logo.svg">
-  <link rel="apple-touch-icon" href="assets/images/fivecodelab-logo.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/images/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/images/fivecodelab-logo-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/images/apple-touch-icon.png">
   <link rel="mask-icon" href="assets/images/fivecodelab-logo.svg" color="#003087">
   <link rel="manifest" href="assets/manifest.webmanifest">
   <script>window.SITE_PHONE = '<?= esc($brandPhone) ?>'; window.CART_SLUGS = <?= json_encode(array_keys(cart())) ?>;</script>

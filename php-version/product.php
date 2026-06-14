@@ -42,21 +42,50 @@ foreach ($brandLookup as $kw => $br) {
 $availableNow = function_exists('available_keys_count') ? available_keys_count($product['slug']) : 0;
 $availability = $availableNow > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock';
 
+// Pull up to 3 published customer reviews for this product so each review
+// is exposed inline in the Product schema — Google Shopping / AI summarizers
+// quote these directly in shopping results & AI answers.
+$pReviews = db()->prepare("SELECT customer_name, rating, comment, submitted_at FROM customer_reviews WHERE product_slug = ? AND status = 'published' AND rating IS NOT NULL ORDER BY submitted_at DESC LIMIT 3");
+$pReviews->execute([$product['slug']]);
+$pReviews = $pReviews->fetchAll() ?: [];
+
 $jsonLd = [
     '@context'    => 'https://schema.org',
     '@type'       => 'Product',
+    '@id'         => site_url() . '/product.php?slug=' . $product['slug'] . '#product',
     'name'        => $product['name'],
     'image'       => $product['image'],
     'description' => $pageDescription,
     'sku'         => $product['slug'],
     'mpn'         => $product['slug'],
+    'productID'   => 'fcl_' . $product['slug'],
+    'gtin'        => null, // digital license keys have no GTIN
     'brand'       => ['@type' => 'Brand', 'name' => $detectedBrand],
+    'manufacturer'=> ['@type' => 'Organization', 'name' => $detectedBrand],
     'category'    => ucfirst((string)($product['category'] ?? 'Software')),
+    'isFamilyFriendly' => true,
+    'inLanguage'  => 'en',
+    // Google Shopping product attribute — surfaces "Digital download" badge in results
+    'additionalProperty' => [
+        ['@type' => 'PropertyValue', 'name' => 'Delivery method', 'value' => 'Digital download (email)'],
+        ['@type' => 'PropertyValue', 'name' => 'Delivery time',   'value' => '15-30 minutes after payment'],
+        ['@type' => 'PropertyValue', 'name' => 'License type',    'value' => 'Perpetual lifetime license, single-device'],
+        ['@type' => 'PropertyValue', 'name' => 'Platform',        'value' => ucfirst((string)($product['platform'] ?? 'Windows / Mac'))],
+        ['@type' => 'PropertyValue', 'name' => 'Authenticity',    'value' => 'Genuine — activates with the official vendor'],
+    ],
+    'audience' => ['@type' => 'PeopleAudience', 'suggestedMinAge' => 13, 'audienceType' => 'Consumers and businesses'],
     'offers'      => [
         '@type'         => 'Offer',
+        '@id'           => site_url() . '/product.php?slug=' . $product['slug'] . '#offer',
         'url'           => site_url() . '/product.php?slug=' . $product['slug'],
         'priceCurrency' => current_currency()['code'] ?? 'USD',
         'price'         => (string)$product['price'],
+        'priceSpecification' => [
+            '@type' => 'PriceSpecification',
+            'price' => (string)$product['price'],
+            'priceCurrency' => current_currency()['code'] ?? 'USD',
+            'valueAddedTaxIncluded' => true,
+        ],
         'availability'  => $availability,
         'itemCondition' => 'https://schema.org/NewCondition',
         'priceValidUntil' => date('Y-12-31'),
@@ -77,6 +106,7 @@ $jsonLd = [
         ],
         'hasMerchantReturnPolicy' => [
             '@type'         => 'MerchantReturnPolicy',
+            'applicableCountry'    => ['US','GB','CA','AU','IN','AE'],
             'returnPolicyCategory' => 'https://schema.org/MerchantReturnFiniteReturnWindow',
             'merchantReturnDays'   => 30,
             'returnMethod'         => 'https://schema.org/ReturnByMail',
@@ -92,6 +122,18 @@ if ((float)$product['rating'] > 0 && (int)$product['reviews'] > 0) {
         'bestRating'  => '5',
         'worstRating' => '1',
     ];
+}
+// Inline review snippets — Google quotes these in Shopping; AI engines surface them in answers
+if (!empty($pReviews)) {
+    $jsonLd['review'] = array_map(function ($r) {
+        return [
+            '@type'         => 'Review',
+            'reviewRating'  => ['@type' => 'Rating', 'ratingValue' => (string)$r['rating'], 'bestRating' => '5', 'worstRating' => '1'],
+            'author'        => ['@type' => 'Person', 'name' => $r['customer_name'] ?: 'Verified Customer'],
+            'datePublished' => substr((string)$r['submitted_at'], 0, 10),
+            'reviewBody'    => strip_tags((string)$r['comment']),
+        ];
+    }, $pReviews);
 }
 
 // BreadcrumbList — surfaces the path Home → Category → Product in Google

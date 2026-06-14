@@ -36,11 +36,16 @@ Rebrand the existing storefront from "Maventech Software" to **Fivecodelab Softw
 - **DB content sweep** — every long-form content table (`blog_posts`, `pages`, `email_templates`, `email_template_versions`, `email_outbox`, `faqs`, `lead_notes`, `products`, `testimonials`, `customer_reviews`) now has zero "Maventech" mentions. Email addresses, statement names, merchant names all rebranded.
 - **`database.sql` refresh** — fresh-pod seed now comes up branded as Fivecodelab Software, with the new Moreno Valley address and admin email.
 - **`llms.txt` + `robots.txt` rebrand** — AI crawler allow-list + structured site index now reference Fivecodelab.
-- **SEO + AI-Search visibility pass** (header.php + index.php):
-  - JSON-LD: `Organization`, `LocalBusiness`, `WebSite` (existing), **+ `FAQPage`** (homepage FAQ → rich snippets / AI ingestion), **+ `BreadcrumbList`**, **+ `ItemList` of best-selling Products with Offers + Brand + Seller** — 17 schema types per home page render
-  - Meta: `theme-color` (light + dark), `color-scheme`, `apple-mobile-web-app-title`, `geo.region`/`geo.placename`/`geo.position`/`ICBM` (Moreno Valley CA), `content-language`, `author`/`publisher`/`copyright`, `referrer`, `format-detection`
-  - Performance: `preconnect`+`dns-prefetch` to jsdelivr + Google Fonts, `loading="lazy"` already on product/post imgs, branded favicons (svg + apple-touch + mask-icon)
-  - Accessibility: ARIA labels on social/map/contact links, `role="contentinfo"` on footer, `visually-hidden` label on newsletter input, `aria-label` on `<nav class="legal-links">`
+- **SEO + AI-Search visibility pass** (header.php + index.php + product.php):
+  - **JSON-LD**:
+    - Homepage (17 schema types): `Organization`, `LocalBusiness`, `WebSite`, `FAQPage`, `BreadcrumbList`, `ItemList` of best-selling Products with full `Offer` + `Brand` + `Seller`
+    - Product pages (27 schema types): `Product` with `@id`, `productID`, `mpn`, `sku`, `brand`, `manufacturer`, `category`, `additionalProperty[5]` (delivery method, license type, platform, etc.), `audience`, `aggregateRating`, **inline `review[]` snippets pulled from `customer_reviews`**, `Offer` with `PriceSpecification`/VAT flag, `shippingDetails` for 6 countries, `MerchantReturnPolicy` with `applicableCountry`, `BreadcrumbList`, `FAQPage`
+  - **Raster OG assets** — `fivecodelab-og.png` (1200×630, generated via `rsvg-convert`), `favicon-32.png`, `apple-touch-icon.png` (180×180), `fivecodelab-logo-192.png`, `fivecodelab-logo-512.png` (manifest icons). Wired as `<link rel="icon">`, `apple-touch-icon`, and richer `og:image:type/width/height/alt` + `twitter:image:alt`/`twitter:site/creator`.
+  - **hreflang** — `en-US` + `en` + `x-default` rel=alternate links emitted on every page (pointing at the canonical URL today; ready to expand when regional sub-domains go live).
+  - **Meta upgrades**: `theme-color` (light + dark), `color-scheme`, `apple-mobile-web-app-title`, geo (`geo.region`/`placename`/`position`/`ICBM` for Moreno Valley CA), `content-language`, `author`/`publisher`/`copyright`, `referrer`, `format-detection`, `og:locale`.
+  - **Performance**: `preconnect` + `dns-prefetch` to jsdelivr + Google Fonts CDNs.
+  - **PWA manifest** at `/assets/manifest.webmanifest` (now serves raster + SVG icons + 5 shortcuts).
+  - **Accessibility**: `role="contentinfo"` on footer, ARIA labels on social/map/legal nav, `visually-hidden` label on newsletter input.
 - **Admin credentials**: `services@fivecodelabsoftware.com` / `Fivecode@2026!`
 
 ## Test Status
