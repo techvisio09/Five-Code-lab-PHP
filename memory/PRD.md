@@ -56,12 +56,9 @@ Rebrand the existing storefront from "Maventech Software" to **Fivecodelab Softw
 - **Review URL bug fix** — `/review.php` now parses both proper (`?t=TOK&rating=N`) and legacy (`?t=TOK?rating=N`) URLs. DB swept for stale templates; source-code audit shows zero remaining bad patterns.
 - **Admin "Email Link Sanity Test" tool** — collapsible card at the top of the Reviews tab in `/admin.php` lets admins paste any review URL and instantly see (a) whether it parses, (b) the resolved token, (c) the pre-selected star rating, (d) which `customer_reviews` row it lands on, (e) whether the legacy-URL recovery path was triggered, plus errors/warnings. One-click "Use real sample URL" button auto-loads a real DB token for a green-path test. Helper lives at `includes/functions.php::parse_review_url_for_admin()` and runs the exact same parser as `review.php`, so the test result is a 100% faithful preview of production behaviour.
 
-## AI SEO Centre + Multi-Market Auto-Blogger (2026-06-14)
-- **AI SEO Centre admin panel** (`/admin.php?tab=seo`) — added to a new **Growth** sidebar group, powered by Claude Sonnet 4.6 via the Emergent Universal Key.
-  - **Redesigned dashboard UI** (purple AI aesthetic): hero card with "▶ Run now", 5-column health stats panel (Last run, IndexNow, LLM refresh, Engines pinged, Health), live feed of all AI-published posts, collapsible Manual Controls.
-  - One-click "Run now" button (AI meta refresh + sitemap + llms-full.txt + IndexNow/Bing/Yandex pings).
-  - Per-host IndexNow key auto-generated + `<key>.txt` published in webroot.
-  - Auto-schedule card: server cron command + tokenised HTTP cron URL with **copy-to-clipboard helper** and "keep secret" warning.
+## AI SEO Centre + Multi-Market Auto-Blogger + Citation Tracker (2026-06-14)
+- **Sidebar renamed**: "AI SEO Centre" → **"AI Auto-Blogger"** (Growth section).
+- **Redesigned dashboard UI** (purple AI aesthetic): hero card with "▶ Run now", 5-column health stats panel (Last run, IndexNow, LLM refresh, Engines pinged, Health), region-tagged live feed, AI Citation Tracker card, collapsible Manual Controls with copy-to-clipboard cron URL.
 - **AI Multi-Market Auto-Blogger** — flagship feature:
   - Targets **4 markets** (US, UK, AU, CA). Australia (AU) added to `regions` table via idempotent migration.
   - **5-6 fresh posts published per day** (configurable via `seo_ai_daily_post_cap`, hard ceiling 6). Pass 1: one post per market in rotation. Pass 2: fill remaining slots by rotating markets.
@@ -69,13 +66,24 @@ Rebrand the existing storefront from "Maventech Software" to **Fivecodelab Softw
   - Picks the most relevant un-covered featured product per market (skips anything blogged in that market in last 90 days).
   - Claude Sonnet 4.6 writes a 600-900 word editorial-style guide with lead dek + 2-3 H2 sections + product CTA, titled by the AI.
   - Auto-inserted into `blog_posts` with the next available numeric id and a `region` column. Immediately live at `/blog-post.php?id=N` with full Article JSON-LD.
-  - Each post tagged with a `region` column in `seo_ai_blog_log`.
-  - Daily cap enforced via `seo_ai_blog_log` table (`WHERE DATE(created_at) = CURDATE()`).
-  - **Region pills** (US/UK/AU/CA) coloured per market in the admin live feed.
-- **Notification system** — purple/violet alert in SEO Centre, orange toast on every admin page until acknowledged, red badge on the sidebar "AI SEO Centre" link with unread count, plus "X pending review" / "all reviewed" status in the live feed header.
+  - Region pills (US/UK/AU/CA) coloured per market in the admin live feed.
+- **AI Citation Tracker** — new flagship feature:
+  - Polls **5 major AI engines** weekly: ChatGPT (GPT-4.1) · ChatGPT (GPT-5.2) · Claude Sonnet 4.6 · Google Gemini 2.5 Flash · MS Copilot (GPT-4o-mini).
+  - Asks each engine 5 buyer-style questions ("What does Fivecodelab Software sell?", "Is X a legitimate reseller?", "Best place to buy Office 2024?", etc.).
+  - Scores each response on: brand mentioned (yes/no), product family mentions (count), sentiment (positive/neutral/negative), accuracy 0-100.
+  - Per-engine summary cards: 100% cite rate / accuracy / GREAT-PARTIAL-MISSING status.
+  - Collapsible "View last N AI responses" showing the full text of what each AI said about the brand.
+  - Auto-runs weekly via `cron/citation-weekly.php` registered in `start.sh`.
+  - Manual "Run citation check" button in admin (5 engines × 2 quick queries = 10 LLM calls).
+- **Production-grade SEO infrastructure**:
+  - **Dynamic robots.txt** (`robots-dynamic.php`) — 41 user-agent allow-lists covering Googlebot, Bingbot, GPTBot, ChatGPT-User, OAI-SearchBot, ClaudeBot, anthropic-ai, PerplexityBot, Perplexity-User, Google-Extended, Applebot-Extended, MicrosoftPreview, MistralAI-User, cohere-ai, YouBot, PhindBot, KagiBot, Amazonbot, meta-externalagent, etc. Sitemap URL adapts to the request host (no preview-URL leakage in production).
+  - **Apache .htaccess** updated with rewrite rules so production hosts (cPanel/Plesk/LiteSpeed) route `/sitemap.xml` → `sitemap-xml.php`, `/merchant-feed.xml` → `merchant-feed.php`, `/robots.txt` → `robots-dynamic.php`.
+  - **Internal linking (SEO boost)**: each blog post now renders 4 "More guides you might like" links + 3 "Best-selling products mentioned in this guide" cards, passing link equity from editorial content to commercial product pages.
+- **Notification system** — purple alert in SEO Centre, orange toast on every admin page until acknowledged, red badge on the sidebar "AI Auto-Blogger" link with unread count.
 - **Daily background runner** registered in `start.sh` (90s warmup + every 24h loop). Idempotent — content-hash drift detection + per-day caps + per-market 90-day cooldown.
+- **Weekly citation runner** registered in `start.sh` (5min warmup + every 7d loop).
 - **Telemetry**: each pipeline run records LLM call count + estimated tokens + IndexNow URL count + sitemap URL count, surfaced in the admin stats panel.
-- **Production-ready**: All schema migrations are idempotent (start.sh + `seo_ensure_table` self-heal). Tested 100% green via testing_agent_v3_fork (frontend + backend + sitemap + llms-full + market localization). No hardcoded URLs (uses `site_url()` everywhere).
+- **Production-ready**: All schema migrations are idempotent (start.sh + `seo_ensure_table` self-heal). Tested 100% green via `testing_agent_v3_fork` × 2 iterations (frontend + backend + sitemap + llms-full + robots.txt + citation tracker + internal linking + cross-tab navigation). No hardcoded URLs (uses `site_url()` everywhere).
 - **P1 backlog cleanup** verified — DB sweep returned zero "Maventech" leftovers in blog_posts, pages, faqs, products, settings, or email_templates.
 
 ## Test Status
