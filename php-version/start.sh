@@ -86,5 +86,15 @@ fi
   done
 ) &
 
+# 4c) Weekly anti-scraper / content-clone watchdog — asks AI engines if any
+#     third-party site has scraped our last 10 AI-written articles.
+(
+  sleep 600
+  while true; do
+    /usr/bin/php /app/php-version/cron/scrape-weekly.php >> /var/log/scrape-weekly.log 2>&1
+    sleep 604800
+  done
+) &
+
 # 5) Serve the PHP store on port 3000
 exec env PHP_CLI_SERVER_WORKERS=8 php -S 0.0.0.0:3000 -t /app/php-version /app/php-version/router.php

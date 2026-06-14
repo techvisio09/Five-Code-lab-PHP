@@ -5884,6 +5884,30 @@ elseif ($tab === 'reviews'):
       }
   }
 
+  // Re-verify indexing status of recent posts (URL reachable + in sitemap)
+  $verifyResult = null;
+  if (($_POST['action'] ?? '') === 'seo_verify_indexing') {
+      try {
+          $verifyResult = seo_ai_verify_recent_indexing(50);
+      } catch (Throwable $e) {
+          $verifyResult = ['error' => $e->getMessage()];
+      }
+  }
+
+  // Anti-scraper run
+  $scrapeResult = null;
+  if (($_POST['action'] ?? '') === 'seo_scrape_now') {
+      try {
+          $scrapeResult = seo_scrape_run(10);
+      } catch (Throwable $e) {
+          $scrapeResult = ['error' => $e->getMessage()];
+      }
+  }
+
+  // Region filter for the live feed
+  $feedRegion = strtoupper((string)($_GET['feed_region'] ?? ''));
+  if (!in_array($feedRegion, ['US','UK','AU','CA'], true)) $feedRegion = '';
+
   // Run the full SEO pipeline (LLM meta refresh + sitemap + IndexNow + auto-blog)
   $runResult = null;
   if (($_POST['action'] ?? '') === 'seo_run_now') {
@@ -5898,12 +5922,27 @@ elseif ($tab === 'reviews'):
   if ($cronTok === '') { $cronTok = bin2hex(random_bytes(8)); setting_set('seo_cron_token', $cronTok); }
 
   $health      = seo_ai_health_snapshot();
-  $aiBlogs     = seo_ai_recent_blog_posts(20);
+  $aiBlogs     = seo_ai_recent_blog_posts(40, $feedRegion ?: null);
   $aiBlogCount = (int)db()->query("SELECT COUNT(*) FROM seo_ai_blog_log")->fetchColumn();
   $todayCount  = seo_ai_blog_today_count();
   $pendingBlog = seo_ai_pending_alert_post();
   $cronCmd     = '0 4 * * *  /usr/bin/php ' . realpath(__DIR__) . '/cron/seo-daily.php >/var/log/seo-daily.log 2>&1';
   $webCronUrl  = rtrim(site_url(), '/') . '/cron/seo-daily.php?token=' . urlencode($cronTok);
+  // CRITICAL: surface LLM budget exhaustion so the operator knows why posts stopped
+  $budgetAlert = setting_get('seo_ai_budget_alert', '');
+
+  // Per-market stats for filter chips
+  $marketStats = seo_ai_counts_by_market();
+  $perMarketCap = (int)setting_get('seo_ai_per_market_post_cap', 6);
+  if ($perMarketCap < 1)  $perMarketCap = 6;
+  if ($perMarketCap > 10) $perMarketCap = 10;
+  // Verified + indexed totals
+  $totalIndexed  = array_sum(array_column($marketStats, 'indexed'));
+  $totalLinks    = array_sum(array_column($marketStats, 'avg_links'));
+
+  // Anti-scraper data
+  $scrapeStats  = seo_scrape_counts();
+  $scrapeRecent = seo_scrape_recent(10);
 
   // AI Citation Tracker stats
   $citationByEngine = seo_citation_engine_summary();
@@ -6090,6 +6129,26 @@ elseif ($tab === 'reviews'):
 [data-bs-theme="dark"] .ai-feed-blog-cta a { color:#c4b5fd; }
 </style>
 
+  <?php if ($budgetAlert): ?>
+    <div class="card-e mb-3" data-testid="seo-budget-alert" style="border-left:5px solid #dc2626 !important;background:linear-gradient(135deg,#fef2f2,#fee2e2);">
+      <div class="d-flex align-items-start gap-3 p-3">
+        <div style="width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#dc2626,#991b1b);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:18px;flex-shrink:0;"><i class="bi bi-exclamation-octagon-fill"></i></div>
+        <div class="flex-grow-1">
+          <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+            <strong style="color:#991b1b;">Emergent LLM key budget exceeded</strong>
+            <span class="badge bg-danger">action required</span>
+            <small class="text-muted">· flagged <?= esc(date('M j, Y · g:i a', strtotime($budgetAlert) ?: time())) ?></small>
+          </div>
+          <div class="small" style="color:#7f1d1d;">
+            New AI posts will fail until you top up the Universal Key.
+            Open <strong>Profile → Universal Key → Add Balance</strong> in Emergent to refill (and optionally enable auto top-up so this never happens again).
+            The pipeline picks up automatically once the budget is restored — no code change needed.
+          </div>
+        </div>
+      </div>
+    </div>
+  <?php endif; ?>
+
   <?php if ($pendingBlog): ?>
     <!-- AI auto-publish alert: shows until admin dismisses -->
     <div class="card-e mb-3" style="border-left:5px solid #8b5cf6 !important;background:linear-gradient(135deg,rgba(167,139,250,.10),rgba(196,181,253,.08));" data-testid="seo-ai-blog-alert">
@@ -6205,33 +6264,68 @@ elseif ($tab === 'reviews'):
     <div class="ai-feed-head">
       <h6><i class="bi bi-stars"></i>Live feed · all AI-published blog posts</h6>
       <div class="sub">
-        <?= (int)$aiBlogCount ?> post<?= $aiBlogCount === 1 ? '' : 's' ?> auto-published · markets: US · UK · AU · CA
+        <?= (int)$aiBlogCount ?> post<?= $aiBlogCount === 1 ? '' : 's' ?> auto-published ·
+        <span class="text-success" title="Posts that were submitted to IndexNow successfully"><i class="bi bi-broadcast"></i> <?= (int)$totalIndexed ?> indexed</span> ·
+        <span class="text-primary" title="Internal product/category/blog backlinks across all AI posts"><i class="bi bi-link-45deg"></i> avg <?= number_format($totalLinks, 1) ?> backlinks/post</span>
         <?php
           $unread = (int)db()->query("SELECT COUNT(*) FROM seo_ai_blog_log WHERE acknowledged_at IS NULL")->fetchColumn();
         ?>
         <?php if ($unread === 0 && $aiBlogCount > 0): ?>
-          <span class="text-success ms-1" title="Every AI post has been reviewed"><i class="bi bi-check-circle-fill"></i> all reviewed</span>
+          · <span class="text-success ms-1" title="Every AI post has been reviewed"><i class="bi bi-check-circle-fill"></i> all reviewed</span>
         <?php elseif ($unread > 0): ?>
-          <span class="text-warning ms-1" title="<?= $unread ?> AI post(s) await admin review"><i class="bi bi-exclamation-circle-fill"></i> <?= $unread ?> pending review</span>
+          · <span class="text-warning ms-1" title="<?= $unread ?> AI post(s) await admin review"><i class="bi bi-exclamation-circle-fill"></i> <?= $unread ?> pending review</span>
         <?php endif; ?>
       </div>
+    </div>
+
+    <!-- Region filter chips -->
+    <div class="d-flex gap-2 flex-wrap py-3" data-testid="feed-region-filter">
+      <?php
+        $totalToday = array_sum(array_column($marketStats, 'today'));
+        $totalAll   = $aiBlogCount;
+        $chips = [
+          ['', 'All markets', $totalAll, $totalToday, '#7c3aed'],
+          ['US', 'United States', $marketStats['US']['total'] ?? 0, $marketStats['US']['today'] ?? 0, '#1d4ed8'],
+          ['UK', 'United Kingdom · £', $marketStats['UK']['total'] ?? 0, $marketStats['UK']['today'] ?? 0, '#1e40af'],
+          ['AU', 'Australia · A$', $marketStats['AU']['total'] ?? 0, $marketStats['AU']['today'] ?? 0, '#92400e'],
+          ['CA', 'Canada · C$', $marketStats['CA']['total'] ?? 0, $marketStats['CA']['today'] ?? 0, '#991b1b'],
+        ];
+        foreach ($chips as [$code, $label, $total, $today_, $color]):
+          $active = ($code === $feedRegion);
+      ?>
+        <a href="?tab=seo<?= $code ? '&feed_region=' . esc($code) : '' ?>"
+           class="text-decoration-none feed-chip <?= $active ? 'feed-chip-active' : '' ?>"
+           data-testid="feed-chip-<?= $code ?: 'all' ?>"
+           style="border:1.5px solid <?= $active ? $color : 'var(--border)' ?>;background:<?= $active ? $color : 'transparent' ?>;color:<?= $active ? '#fff' : 'var(--text)' ?>;padding:6px 14px;border-radius:999px;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:transform .12s, box-shadow .15s;">
+          <?php if ($code): ?><span class="ai-region-pill" data-r="<?= esc($code) ?>" style="font-size:9px;padding:2px 5px;background:<?= $active ? 'rgba(255,255,255,.25)' : '' ?>;color:<?= $active ? '#fff' : '' ?>;border-color:<?= $active ? 'rgba(255,255,255,.4)' : '' ?>;"><?= esc($code) ?></span><?php endif; ?>
+          <span><?= esc($label) ?></span>
+          <span style="font-size:11px;opacity:.7;padding:1px 6px;border-radius:999px;background:rgba(<?= $active ? '255,255,255' : '0,0,0' ?>,.12);"><?= (int)$total ?><?php if ($today_): ?> · today <?= (int)$today_ ?>/<?= (int)$perMarketCap ?><?php endif; ?></span>
+        </a>
+      <?php endforeach; ?>
     </div>
 
     <?php if (!$aiBlogs): ?>
       <div class="text-center text-muted small py-4">
         <i class="bi bi-robot d-block mb-2" style="font-size:30px;color:#a855f7;"></i>
-        No AI-published posts yet. Hit <strong>Run now</strong> above and the AI will write your first 5-6 articles across all 4 markets.
+        <?php if ($feedRegion): ?>
+          No AI posts yet for <strong><?= esc($feedRegion) ?></strong>. The next daily run will fill this market.
+        <?php else: ?>
+          No AI-published posts yet. Hit <strong>Run now</strong> above and the AI will write your first batch across all 4 markets.
+        <?php endif; ?>
       </div>
     <?php else: foreach ($aiBlogs as $b):
-      $created  = strtotime((string)$b['created_at']) ?: time();
-      $secsOld  = time() - $created;
-      $thumb    = (string)($b['product_image'] ?? '');
-      $region   = (string)($b['region'] ?? 'US');
-      $readEst  = max(3, (int)round(((int)$b['word_count']) / 220));
+      $created      = strtotime((string)$b['created_at']) ?: time();
+      $secsOld      = time() - $created;
+      $thumb        = (string)($b['product_image'] ?? '');
+      $region       = (string)($b['region'] ?? 'US');
+      $readEst      = max(3, (int)round(((int)$b['word_count']) / 220));
+      $indexed      = !empty($b['indexnow_submitted_at']);
+      $links        = (int)($b['internal_links'] ?? 0);
     ?>
-      <div class="ai-feed-row" data-testid="seo-feed-row-<?= (int)$b['id'] ?>">
+      <div class="ai-feed-row" data-testid="seo-feed-row-<?= (int)$b['id'] ?>" data-region="<?= esc($region) ?>">
         <?php if ($thumb): ?>
-          <img class="ai-feed-thumb" src="<?= esc($thumb) ?>" alt="<?= esc($b['product_name']) ?>" loading="lazy">
+          <img class="ai-feed-thumb" src="<?= esc($thumb) ?>" alt="<?= esc($b['product_name']) ?>" loading="lazy"
+               onerror="this.outerHTML='<div class=&quot;ai-feed-thumb-fallback&quot;><i class=&quot;bi bi-robot&quot;></i></div>'">
         <?php else: ?>
           <div class="ai-feed-thumb-fallback"><i class="bi bi-robot"></i></div>
         <?php endif; ?>
@@ -6239,6 +6333,14 @@ elseif ($tab === 'reviews'):
           <div class="ai-feed-pillline">
             <span class="ai-pub-pill">AI · Published</span>
             <span class="ai-region-pill" data-r="<?= esc($region) ?>"><?= esc($region) ?></span>
+            <?php if ($indexed): ?>
+              <span class="badge" style="background:#dcfce7;color:#166534;font-size:9.5px;letter-spacing:.08em;" title="Submitted to IndexNow — Bing/Yandex/Naver/Seznam"><i class="bi bi-broadcast"></i> INDEXED</span>
+            <?php else: ?>
+              <span class="badge" style="background:#fef3c7;color:#92400e;font-size:9.5px;letter-spacing:.08em;" title="Not yet submitted to IndexNow — will happen on next pipeline run">PENDING</span>
+            <?php endif; ?>
+            <?php if ($links > 0): ?>
+              <span class="badge" style="background:#dbeafe;color:#1e40af;font-size:9.5px;letter-spacing:.08em;" title="Internal backlinks in this article"><i class="bi bi-link-45deg"></i> <?= $links ?> LINKS</span>
+            <?php endif; ?>
             <span class="ai-feed-meta-small"><?= esc(date('M j, Y', $created)) ?> · <?= esc($ago($secsOld)) ?> · <?= (int)$readEst ?> min read</span>
           </div>
           <div class="ai-feed-title"><?= esc($b['title']) ?></div>
@@ -6385,6 +6487,68 @@ elseif ($tab === 'reviews'):
         <div class="col-md-6"><a href="<?= esc($base) ?>/sitemap.xml" target="_blank" data-testid="verify-sitemap">→ Open live sitemap.xml</a></div>
       </div>
     </details>
+  </div>
+
+  <!-- ============ Anti-Scraper / AI Content-Clone Watchdog ============ -->
+  <div class="ai-feed-card mb-3" data-testid="seo-scrape-watchdog" style="border-color:#fecaca;">
+    <div class="ai-feed-head" style="border-bottom-color:#fecaca;">
+      <h6 style="color:#991b1b;"><i class="bi bi-shield-exclamation"></i>Anti-scraper watchdog · protect your AI-written content</h6>
+      <div class="sub">
+        <?php if ($scrapeStats['last_at']): ?>
+          Last scan: <?= esc(date('M j, Y · H:i', strtotime($scrapeStats['last_at']) ?: time())) ?> UTC ·
+          <?php if ($scrapeStats['open'] > 0): ?>
+            <span class="text-danger fw-semibold"><i class="bi bi-exclamation-triangle-fill"></i> <?= (int)$scrapeStats['open'] ?> open clone alerts</span>
+          <?php else: ?>
+            <span class="text-success"><i class="bi bi-shield-check"></i> no clones detected</span>
+          <?php endif; ?>
+        <?php else: ?>
+          Never run — clicks below ask AI engines if any third-party sites scraped your content
+        <?php endif; ?>
+      </div>
+    </div>
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3 mb-2">
+      <div class="small text-muted">
+        <i class="bi bi-info-circle me-1"></i>Asks AI engines for evidence of scraped clones of your last 10 AI-written articles. Findings get logged + can become DMCA reports. <strong>Auto-scheduled weekly</strong>.
+      </div>
+      <form method="post" class="d-inline">
+        <input type="hidden" name="action" value="seo_scrape_now">
+        <button class="btn btn-sm rounded-pill px-3 fw-semibold" type="submit" style="background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;" data-testid="seo-scrape-run-now">
+          <i class="bi bi-search me-1"></i>Scan for clones now
+        </button>
+      </form>
+    </div>
+    <?php if ($scrapeResult && !empty($scrapeResult['alerts_found']) > 0): ?>
+      <div class="alert alert-warning small py-2 my-2" data-testid="seo-scrape-result">
+        <i class="bi bi-exclamation-triangle me-1"></i><strong><?= (int)$scrapeResult['alerts_found'] ?> potential clone(s)</strong> flagged from <?= (int)$scrapeResult['checked'] ?> articles scanned.
+      </div>
+    <?php elseif ($scrapeResult && empty($scrapeResult['error'])): ?>
+      <div class="alert alert-success small py-2 my-2" data-testid="seo-scrape-result">
+        <i class="bi bi-shield-check me-1"></i>Scanned <?= (int)$scrapeResult['checked'] ?> articles — no clones detected.
+      </div>
+    <?php elseif ($scrapeResult && !empty($scrapeResult['error'])): ?>
+      <div class="alert alert-danger small py-2 my-2"><i class="bi bi-x-octagon me-1"></i><?= esc($scrapeResult['error']) ?></div>
+    <?php endif; ?>
+    <?php if ($scrapeRecent): ?>
+      <details class="mt-2 mb-2">
+        <summary class="small fw-bold text-muted" style="cursor:pointer;letter-spacing:.08em;"><i class="bi bi-list me-1"></i>View <?= count($scrapeRecent) ?> recent alerts</summary>
+        <div class="table-responsive mt-2">
+          <table class="table table-sm align-middle small mb-0">
+            <thead><tr><th>Detected</th><th>Your URL</th><th>Suspected clone</th><th>Similarity</th><th>Note</th></tr></thead>
+            <tbody>
+              <?php foreach ($scrapeRecent as $a): ?>
+                <tr>
+                  <td class="text-muted"><?= esc(date('M j H:i', strtotime((string)$a['detected_at']) ?: time())) ?></td>
+                  <td><a href="<?= esc($a['source_url']) ?>" target="_blank">view</a></td>
+                  <td><a href="<?= esc($a['suspected_clone']) ?>" target="_blank"><?= esc(parse_url($a['suspected_clone'], PHP_URL_HOST) ?: $a['suspected_clone']) ?></a></td>
+                  <td><span class="badge text-bg-warning"><?= (int)$a['similarity'] ?>%</span></td>
+                  <td class="small"><?= esc(mb_substr($a['notes'], 0, 120)) ?></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </details>
+    <?php endif; ?>
   </div>
 
   <!-- ============ AI Citation Tracker ============ -->

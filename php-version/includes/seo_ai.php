@@ -65,26 +65,48 @@ function seo_llm_complete(string $system, string $user, int $maxTokens = 600, st
         'max_tokens'  => $maxTokens,
         'temperature' => 0.4,
     ]);
-    $ch = curl_init('https://integrations.emergentagent.com/llm/chat/completions');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => $payload,
-        CURLOPT_HTTPHEADER     => [
-            'Authorization: Bearer ' . seo_emergent_key(),
-            'Content-Type: application/json',
-        ],
-        CURLOPT_TIMEOUT        => 45,
-    ]);
-    $body = curl_exec($ch);
-    $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    // Up to 3 attempts with exponential backoff so transient rate-limits don't
+    // turn into permanent missing posts.  Total worst-case wait ≈ 3s.
+    $body = '';
+    $http = 0;
+    for ($attempt = 1; $attempt <= 3; $attempt++) {
+        $ch = curl_init('https://integrations.emergentagent.com/llm/chat/completions');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $payload,
+            CURLOPT_HTTPHEADER     => [
+                'Authorization: Bearer ' . seo_emergent_key(),
+                'Content-Type: application/json',
+            ],
+            CURLOPT_TIMEOUT        => 45,
+        ]);
+        $body = curl_exec($ch);
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($http >= 200 && $http < 300 && $body) break;
+        // Detect "budget exceeded" — DO NOT retry, surface the error globally
+        if ($body && stripos((string)$body, 'budget') !== false && stripos((string)$body, 'exceed') !== false) {
+            $GLOBALS['__seo_llm_budget_exceeded'] = true;
+            try { setting_set('seo_ai_budget_alert', date('c')); } catch (Throwable $e) {}
+            break;
+        }
+        if ($http === 429 || $http >= 500) {
+            usleep(($attempt * 800) * 1000);
+            continue;
+        }
+        break;
+    }
     // Track approximate token usage for the SEO Centre stats panel
     $GLOBALS['__seo_llm_calls'] = ($GLOBALS['__seo_llm_calls'] ?? 0) + 1;
     $GLOBALS['__seo_llm_tokens'] = ($GLOBALS['__seo_llm_tokens'] ?? 0)
         + seo_estimate_tokens($system) + seo_estimate_tokens($user) + seo_estimate_tokens((string)$body);
     if ($http >= 400 || !$body) return '';
     $j = json_decode($body, true);
+    // Clear budget flag if we got a real response
+    if (!empty($j['choices'][0]['message']['content'])) {
+        try { setting_set('seo_ai_budget_alert', ''); } catch (Throwable $e) {}
+    }
     return (string)($j['choices'][0]['message']['content'] ?? '');
 }
 
@@ -286,6 +308,9 @@ function seo_ensure_table(): void
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     // Safety: backfill region column on existing installs (idempotent)
     try { db()->exec("ALTER TABLE seo_ai_blog_log ADD COLUMN IF NOT EXISTS region VARCHAR(8) NOT NULL DEFAULT 'US' AFTER title"); } catch (Throwable $e) {}
+    try { db()->exec("ALTER TABLE seo_ai_blog_log ADD COLUMN IF NOT EXISTS internal_links INT NOT NULL DEFAULT 0 AFTER word_count"); } catch (Throwable $e) {}
+    try { db()->exec("ALTER TABLE seo_ai_blog_log ADD COLUMN IF NOT EXISTS indexnow_submitted_at TIMESTAMP NULL DEFAULT NULL"); } catch (Throwable $e) {}
+    try { db()->exec("ALTER TABLE seo_ai_blog_log ADD COLUMN IF NOT EXISTS indexed_verified_at TIMESTAMP NULL DEFAULT NULL"); } catch (Throwable $e) {}
     try { db()->exec("ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS region VARCHAR(8) NOT NULL DEFAULT '' AFTER image"); } catch (Throwable $e) {}
 
     // AI Citation Tracker — stores what AI engines say about the brand
@@ -676,79 +701,169 @@ function seo_ai_publish_blog_for_product(array $product, string $region = 'US'):
     }
 
     $wordCount = max(1, str_word_count(strip_tags($html)));
-    db()->prepare('INSERT INTO seo_ai_blog_log (blog_id, product_slug, product_name, title, region, word_count) VALUES (?,?,?,?,?,?)')
-        ->execute([(string)$nextId, (string)$product['slug'], (string)$product['name'], $title, $region, $wordCount]);
+    // Count internal links in the article body — passing link equity from
+    // editorial content to commercial product pages is a real SEO signal
+    $internalLinks = preg_match_all('/href=[\"\'](?:[^"\'#]*\/)?(product|category|blog-post)\.php/i', $html) ?: 0;
+    db()->prepare('INSERT INTO seo_ai_blog_log (blog_id, product_slug, product_name, title, region, word_count, internal_links) VALUES (?,?,?,?,?,?,?)')
+        ->execute([(string)$nextId, (string)$product['slug'], (string)$product['name'], $title, $region, $wordCount, $internalLinks]);
+    $logRowId = (int)db()->lastInsertId();
+
+    // ----- Immediately submit the new URL to IndexNow so first crawl happens
+    //       in minutes instead of waiting for the next daily heartbeat -----
+    $url = rtrim(site_url(), '/') . '/blog-post.php?id=' . $nextId;
+    try {
+        $indexNow = seo_indexnow_submit([$url]);
+        $okIndexNow = false;
+        foreach (($indexNow['endpoints'] ?? []) as $code) {
+            if ($code >= 200 && $code < 300) { $okIndexNow = true; break; }
+        }
+        if ($okIndexNow) {
+            db()->prepare('UPDATE seo_ai_blog_log SET indexnow_submitted_at = NOW() WHERE id = ?')->execute([$logRowId]);
+        }
+    } catch (Throwable $e) { /* non-fatal */ }
 
     return [
-        'ok'          => true,
-        'blog_id'     => (string)$nextId,
-        'title'       => $title,
-        'word_count'  => $wordCount,
-        'region'      => $region,
-        'product'     => $product['name'],
-        'url'         => rtrim(site_url(), '/') . '/blog-post.php?id=' . $nextId,
+        'ok'             => true,
+        'blog_id'        => (string)$nextId,
+        'title'          => $title,
+        'word_count'     => $wordCount,
+        'internal_links' => $internalLinks,
+        'region'         => $region,
+        'product'        => $product['name'],
+        'url'            => $url,
     ];
 }
 
-/** Daily auto-blogger — produces up to N posts/day, distributed across all
- *  target markets.  Default cap is 5 posts/day (configurable via settings
- *  `seo_ai_daily_post_cap`, hard ceiling of 6).
+/** Daily auto-blogger — produces up to N posts/day **per market**.
+ *  Default is 6 posts × 4 markets = 24 posts/day.  Configurable via the
+ *  `seo_ai_per_market_post_cap` setting (1-10).
  */
 function seo_ai_run_daily_blog(): array
 {
     seo_ensure_table();
-    $cap = (int)setting_get('seo_ai_daily_post_cap', 5);
-    if ($cap < 1) $cap = 5; if ($cap > 6) $cap = 6;
+    $perMarketCap = (int)setting_get('seo_ai_per_market_post_cap', 6);
+    if ($perMarketCap < 1)  $perMarketCap = 6;
+    if ($perMarketCap > 10) $perMarketCap = 10;
+
+    $markets = seo_target_markets(); // [US, UK, AU, CA]
+    $globalCap = $perMarketCap * count($markets);
 
     $existing = seo_ai_blog_today_count();
-    if ($existing >= $cap) {
-        return ['ok' => false, 'skipped' => 'daily cap reached (' . $existing . '/' . $cap . ')', 'posts' => []];
+    if ($existing >= $globalCap) {
+        return ['ok' => false, 'skipped' => 'daily cap reached (' . $existing . '/' . $globalCap . ')', 'posts' => []];
     }
 
     $posts = [];
-    $markets = seo_target_markets(); // [US, UK, AU, CA]
-    // Pass 1 — make sure every market has at least one post today, in order.
-    foreach ($markets as $region) {
-        if (count($posts) + $existing >= $cap) break;
-        if (seo_ai_blog_today_count_by_market($region) > 0) continue; // market already covered today
-        $product = seo_ai_pick_blog_product_for_market($region);
-        if (!$product) { $posts[] = ['ok' => false, 'region' => $region, 'error' => 'no eligible product']; continue; }
-        try {
-            $posts[] = seo_ai_publish_blog_for_product($product, $region);
-        } catch (Throwable $e) {
-            $posts[] = ['ok' => false, 'region' => $region, 'error' => $e->getMessage()];
+    // Round-robin across markets until each market is full or no eligible product
+    $rounds = 0;
+    while ($rounds < $perMarketCap) {
+        $publishedThisRound = 0;
+        foreach ($markets as $region) {
+            if (seo_ai_blog_today_count_by_market($region) >= $perMarketCap) continue;
+            $product = seo_ai_pick_blog_product_for_market($region);
+            if (!$product) { continue; }
+            try {
+                $r = seo_ai_publish_blog_for_product($product, $region);
+                $posts[] = $r;
+                if (!empty($r['ok'])) $publishedThisRound++;
+            } catch (Throwable $e) {
+                $posts[] = ['ok' => false, 'region' => $region, 'error' => $e->getMessage()];
+            }
+            // safety hatch — bail out if global cap hit
+            if (seo_ai_blog_today_count() >= $globalCap) break 2;
         }
-    }
-    // Pass 2 — fill the remaining slots by rotating markets (extra coverage)
-    $idx = 0;
-    while (count($posts) + $existing < $cap && $idx < 20) {
-        $region = $markets[$idx % count($markets)];
-        $idx++;
-        $product = seo_ai_pick_blog_product_for_market($region);
-        if (!$product) continue;
-        try {
-            $posts[] = seo_ai_publish_blog_for_product($product, $region);
-        } catch (Throwable $e) {
-            $posts[] = ['ok' => false, 'region' => $region, 'error' => $e->getMessage()];
-        }
+        if ($publishedThisRound === 0) break; // no market could publish this round → done
+        $rounds++;
     }
 
     $okCount = count(array_filter($posts, fn($p) => !empty($p['ok'])));
-    return ['ok' => $okCount > 0, 'posts' => $posts, 'published' => $okCount, 'cap' => $cap];
+    return ['ok' => $okCount > 0, 'posts' => $posts, 'published' => $okCount, 'per_market_cap' => $perMarketCap, 'global_cap' => $globalCap];
 }
 
-function seo_ai_recent_blog_posts(int $limit = 12): array
+function seo_ai_recent_blog_posts(int $limit = 12, ?string $region = null): array
 {
     seo_ensure_table();
-    $s = db()->prepare(
-        'SELECT b.*, p.image AS product_image, p.platform AS product_platform
-         FROM seo_ai_blog_log b
-         LEFT JOIN products p ON p.slug = b.product_slug
-         ORDER BY b.id DESC LIMIT ?'
-    );
-    $s->bindValue(1, $limit, PDO::PARAM_INT);
+    if ($region) {
+        $s = db()->prepare(
+            'SELECT b.*, p.image AS product_image, p.platform AS product_platform
+             FROM seo_ai_blog_log b
+             LEFT JOIN products p ON p.slug = b.product_slug
+             WHERE b.region = ?
+             ORDER BY b.id DESC LIMIT ?'
+        );
+        $s->bindValue(1, $region, PDO::PARAM_STR);
+        $s->bindValue(2, $limit, PDO::PARAM_INT);
+    } else {
+        $s = db()->prepare(
+            'SELECT b.*, p.image AS product_image, p.platform AS product_platform
+             FROM seo_ai_blog_log b
+             LEFT JOIN products p ON p.slug = b.product_slug
+             ORDER BY b.id DESC LIMIT ?'
+        );
+        $s->bindValue(1, $limit, PDO::PARAM_INT);
+    }
     $s->execute();
     return $s->fetchAll() ?: [];
+}
+
+/** Per-market counts for the live-feed filter chips. */
+function seo_ai_counts_by_market(): array
+{
+    seo_ensure_table();
+    $rows = db()->query("SELECT region, COUNT(*) AS total,
+                                SUM(DATE(created_at)=CURDATE()) AS today,
+                                SUM(indexnow_submitted_at IS NOT NULL) AS indexed,
+                                AVG(internal_links) AS avg_links
+                         FROM seo_ai_blog_log GROUP BY region")->fetchAll();
+    $by = [];
+    foreach ($rows as $r) {
+        $by[$r['region']] = [
+            'total'      => (int)$r['total'],
+            'today'      => (int)$r['today'],
+            'indexed'    => (int)$r['indexed'],
+            'avg_links'  => round((float)$r['avg_links'], 1),
+        ];
+    }
+    return $by;
+}
+
+/** Verify that a published blog URL is publicly reachable + present in
+ *  /sitemap.xml — that's the foundation for any AI crawler to find it.
+ *  Returns true if both checks pass (and updates indexed_verified_at). */
+function seo_ai_verify_indexing(int $logRowId): bool
+{
+    seo_ensure_table();
+    $row = db()->prepare('SELECT * FROM seo_ai_blog_log WHERE id = ?');
+    $row->execute([$logRowId]);
+    $row = $row->fetch();
+    if (!$row) return false;
+    $url = rtrim(site_url(), '/') . '/blog-post.php?id=' . $row['blog_id'];
+    // 1. URL returns 200
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_NOBODY => true, CURLOPT_TIMEOUT => 10]);
+    curl_exec($ch);
+    $http = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    // 2. URL listed in sitemap
+    $sm = @file_get_contents(__DIR__ . '/../sitemap.xml') ?: '';
+    $inSitemap = strpos($sm, '/blog-post.php?id=' . $row['blog_id']) !== false;
+    $ok = ($http >= 200 && $http < 300) && $inSitemap;
+    if ($ok) {
+        db()->prepare('UPDATE seo_ai_blog_log SET indexed_verified_at = NOW() WHERE id = ?')->execute([$logRowId]);
+    }
+    return $ok;
+}
+
+/** Bulk verify all recent posts.  Returns counts for the dashboard. */
+function seo_ai_verify_recent_indexing(int $limit = 50): array
+{
+    seo_ensure_table();
+    $rows = db()->query("SELECT id FROM seo_ai_blog_log ORDER BY id DESC LIMIT " . (int)$limit)->fetchAll();
+    $verified = 0; $checked = count($rows);
+    foreach ($rows as $r) {
+        if (seo_ai_verify_indexing((int)$r['id'])) $verified++;
+    }
+    return ['checked' => $checked, 'verified' => $verified];
 }
 
 /** Latest health snapshot — used by the AI SEO Centre stats panel. */
@@ -950,5 +1065,88 @@ function seo_citation_last_run_at(): ?string
 {
     seo_ensure_table();
     return db()->query('SELECT MAX(checked_at) FROM seo_ai_citations')->fetchColumn() ?: null;
+}
+
+
+// =====================================================================
+//  ANTI-SCRAPER / AI CONTENT-CLONE WATCHDOG
+//  --------------------------------------------------------------------
+//  Once a week, ask an AI engine to do a "site:" + content-fingerprint
+//  search for our most recent AI-written blog posts and product pages,
+//  flagging any third-party sites that may have scraped our content.
+//  Stores findings in seo_ai_scrape_alerts for the admin dashboard.
+//  Note: this uses LLM hypothesis-checking — for true reverse-image-
+//  search you would also wire Google Custom Search API (extra key).
+// =====================================================================
+
+function seo_scrape_ensure_table(): void
+{
+    db()->exec("CREATE TABLE IF NOT EXISTS seo_ai_scrape_alerts (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        source_url VARCHAR(500) NOT NULL,
+        suspected_clone VARCHAR(500) NOT NULL,
+        similarity TINYINT NOT NULL DEFAULT 0,
+        notes TEXT,
+        status VARCHAR(20) NOT NULL DEFAULT 'open',
+        detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_status (status),
+        KEY idx_detected (detected_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+function seo_scrape_run(int $maxArticles = 10): array
+{
+    seo_scrape_ensure_table();
+    $rows = db()->query("SELECT b.*, COALESCE(p.title, b.title) AS title
+                         FROM seo_ai_blog_log b
+                         ORDER BY b.id DESC LIMIT " . (int)$maxArticles)->fetchAll();
+    $alerts = []; $checked = 0;
+    foreach ($rows as $r) {
+        $checked++;
+        $sourceUrl = rtrim(site_url(), '/') . '/blog-post.php?id=' . $r['blog_id'];
+        $prompt = "We published this original AI-written editorial: \"" . str_replace('"', "'", $r['title']) . "\" "
+                . "at " . $sourceUrl . ". Are you aware of any other website on the public internet that has "
+                . "republished, scraped, or closely paraphrased this exact article without attribution? "
+                . "Reply STRICT JSON: {\"clones\":[{\"url\":\"…\",\"similarity\":0-100,\"note\":\"…\"}]}. "
+                . "If you are not aware of any clone, return {\"clones\":[]}.";
+        try {
+            $raw = seo_llm_complete(
+                'You are a senior SEO investigator. Reply with VALID JSON only. No commentary.',
+                $prompt, 600, 'gpt-4.1'
+            );
+            $j = json_decode(_seo_strip_codefence($raw), true);
+            $clones = $j['clones'] ?? [];
+            if (!is_array($clones)) $clones = [];
+            foreach ($clones as $c) {
+                if (empty($c['url'])) continue;
+                $sim = (int)($c['similarity'] ?? 50);
+                $note = (string)($c['note'] ?? '');
+                db()->prepare('INSERT INTO seo_ai_scrape_alerts (source_url, suspected_clone, similarity, notes) VALUES (?,?,?,?)')
+                    ->execute([$sourceUrl, $c['url'], $sim, $note]);
+                $alerts[] = ['source_url' => $sourceUrl, 'clone' => $c['url'], 'similarity' => $sim];
+            }
+        } catch (Throwable $e) { /* skip */ }
+    }
+    return ['checked' => $checked, 'alerts_found' => count($alerts), 'alerts' => $alerts];
+}
+
+function seo_scrape_recent(int $limit = 20): array
+{
+    seo_scrape_ensure_table();
+    $s = db()->prepare('SELECT * FROM seo_ai_scrape_alerts ORDER BY id DESC LIMIT ?');
+    $s->bindValue(1, $limit, PDO::PARAM_INT);
+    $s->execute();
+    return $s->fetchAll() ?: [];
+}
+
+function seo_scrape_counts(): array
+{
+    seo_scrape_ensure_table();
+    $r = db()->query("SELECT COUNT(*) total, SUM(status='open') open_, MAX(detected_at) last_at FROM seo_ai_scrape_alerts")->fetch();
+    return [
+        'total'   => (int)($r['total'] ?? 0),
+        'open'    => (int)($r['open_'] ?? 0),
+        'last_at' => $r['last_at'] ?? null,
+    ];
 }
 

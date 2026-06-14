@@ -129,15 +129,15 @@ $ogImage = $ogImage ?? site_url() . '/assets/images/fivecodelab-og.png';
     // -- Per-market currencies accepted (drives Google's market detection) --
     $currenciesAccepted = 'USD, GBP, AUD, CAD';
     try {
-        $cur = db()->query("SELECT GROUP_CONCAT(DISTINCT currency SEPARATOR ', ') FROM regions WHERE active=1")->fetchColumn();
-        if ($cur) $currenciesAccepted = (string)$cur;
+        $curList = db()->query("SELECT GROUP_CONCAT(DISTINCT currency SEPARATOR ', ') FROM regions WHERE active=1")->fetchColumn();
+        if ($curList) $currenciesAccepted = (string)$curList;
     } catch (Throwable $e) {}
 
     // -- Markets served (drives "near me" answers in AI engines) --
     $areaServed = [];
     try {
-        $rows = db()->query("SELECT code, name FROM regions WHERE active=1 ORDER BY code")->fetchAll();
-        foreach ($rows as $r) {
+        $regionRows = db()->query("SELECT code, name FROM regions WHERE active=1 ORDER BY code")->fetchAll();
+        foreach ($regionRows as $r) {
             $areaServed[] = ['@type' => 'Country', 'name' => $r['name'], 'identifier' => $r['code']];
         }
     } catch (Throwable $e) {}

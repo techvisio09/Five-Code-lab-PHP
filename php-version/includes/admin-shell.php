@@ -1259,13 +1259,22 @@ hr { border-color: var(--border); opacity:.5; }
 // the SEO Centre's primary alert.
 // ===========================================================================
 $autoBlogToast = null;
+$budgetAlertToast = '';
 if ($adminActive !== 'seo') {
     try {
         require_once __DIR__ . '/seo_ai.php';
         $autoBlogToast = seo_ai_pending_alert_post();
+        $budgetAlertToast = (string)setting_get('seo_ai_budget_alert', '');
     } catch (Throwable $e) { $autoBlogToast = null; }
 }
 ?>
+<?php if ($budgetAlertToast): ?>
+  <div class="adm-chat-toast" style="background:linear-gradient(135deg,#dc2626,#991b1b);" data-testid="adm-budget-toast" onclick="window.location.href='admin.php?tab=seo'">
+    <span class="close" data-testid="adm-budget-toast-close" onclick="event.stopPropagation(); this.parentElement.style.display='none';">×</span>
+    <div class="ttl"><i class="bi bi-exclamation-octagon-fill"></i> LLM budget exceeded</div>
+    <div class="msg">AI posts paused. Tap to view fix instructions.</div>
+  </div>
+<?php endif; ?>
 <?php if ($autoBlogToast): ?>
   <div class="adm-chat-toast" style="background:linear-gradient(135deg,#d97706,#f59e0b);" data-testid="adm-ai-blog-toast" onclick="window.location.href='admin.php?tab=seo'">
     <span class="close" data-testid="adm-ai-blog-toast-close" onclick="event.stopPropagation(); this.parentElement.style.display='none';">×</span>
