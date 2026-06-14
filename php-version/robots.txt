@@ -1,4 +1,4 @@
-# Maventech Software — robots.txt
+# Fivecodelab Software — robots.txt
 # Updated for SEO + AEO (Answer Engine Optimization) + GEO (Generative Engine
 # Optimization).  Explicit allow-lists for AI search crawlers so they can
 # index the catalog for ChatGPT / Perplexity / Claude / Bing Chat / Gemini.

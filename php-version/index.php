@@ -22,6 +22,73 @@ $welcomeBack = array_values(array_filter(array_map('get_product', [
     'microsoft-project-2024-professional-pc',
 ])));
 
+// --- Page-level SEO keywords (Bing/Google still consume meta keywords; AI engines mine them too) ---
+$pageKeywords = 'Microsoft Office 2024, Office 2021, Office 2019, Windows 11, Windows 10, Office for Mac, '
+              . 'genuine Microsoft license keys, lifetime license, instant delivery, perpetual license, '
+              . 'antivirus license keys, Bitdefender, McAfee, Norton, authorized Microsoft reseller, '
+              . SITE_BRAND;
+
+// --- FAQPage JSON-LD — emits homepage FAQ as rich result + AI-ingestable schema ---
+if (!empty($faqs)) {
+    $jsonLdFaq = [
+        '@context' => 'https://schema.org',
+        '@type'    => 'FAQPage',
+        'mainEntity' => array_map(function ($f) {
+            return [
+                '@type' => 'Question',
+                'name'  => strip_tags($f['question']),
+                'acceptedAnswer' => [
+                    '@type' => 'Answer',
+                    'text'  => strip_tags($f['answer']),
+                ],
+            ];
+        }, $faqs),
+    ];
+}
+
+// --- BreadcrumbList JSON-LD — helps Google show breadcrumb path in search results ---
+$jsonLdBreadcrumb = [
+    '@context' => 'https://schema.org',
+    '@type'    => 'BreadcrumbList',
+    'itemListElement' => [
+        ['@type' => 'ListItem', 'position' => 1, 'name' => 'Home', 'item' => site_url() . '/'],
+    ],
+];
+
+// --- ItemList JSON-LD — featured best sellers (helps Google show "Top products" carousel) ---
+if (!empty($bestSellers)) {
+    $jsonLd = [
+        '@context' => 'https://schema.org',
+        '@type'    => 'ItemList',
+        'name'     => 'Best-selling Microsoft software at ' . SITE_BRAND,
+        'itemListOrder' => 'https://schema.org/ItemListOrderDescending',
+        'numberOfItems' => count($bestSellers),
+        'itemListElement' => array_values(array_map(function ($idx, $p) {
+            $url = site_url() . '/product.php?slug=' . urlencode($p['slug']);
+            return [
+                '@type'    => 'ListItem',
+                'position' => $idx + 1,
+                'item'     => [
+                    '@type'  => 'Product',
+                    'name'   => $p['name'],
+                    'url'    => $url,
+                    'image'  => $p['image'] ?? null,
+                    'sku'    => $p['slug'],
+                    'brand'  => ['@type' => 'Brand', 'name' => 'Microsoft'],
+                    'offers' => [
+                        '@type'         => 'Offer',
+                        'price'         => (string)$p['price'],
+                        'priceCurrency' => 'USD',
+                        'availability'  => 'https://schema.org/InStock',
+                        'url'           => $url,
+                        'seller'        => ['@type' => 'Organization', 'name' => SITE_BRAND],
+                    ],
+                ],
+            ];
+        }, array_keys($bestSellers), $bestSellers)),
+    ];
+}
+
 include __DIR__ . '/includes/header.php';
 ?>
 

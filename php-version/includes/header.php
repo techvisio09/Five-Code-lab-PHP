@@ -34,6 +34,24 @@ $ogImage = $ogImage ?? site_url() . '/assets/images/fivecodelab-og.svg';
     (function () { try { document.documentElement.setAttribute('data-bs-theme', localStorage.getItem('uc_theme') || 'light'); } catch (e) {} })();
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Theme color follows the active palette so mobile browsers tint the chrome to match the brand -->
+  <meta name="theme-color" content="#003087" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0A1330" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="apple-mobile-web-app-title" content="<?= esc($brandName) ?>">
+  <!-- Geo / regional targeting for international SEO -->
+  <meta name="geo.region" content="US-CA">
+  <meta name="geo.placename" content="Moreno Valley, California">
+  <meta name="geo.position" content="33.9425;-117.2297">
+  <meta name="ICBM" content="33.9425, -117.2297">
+  <!-- Content classification / language -->
+  <meta http-equiv="content-language" content="en-US">
+  <meta name="author" content="<?= esc($brandName) ?>">
+  <meta name="publisher" content="<?= esc($brandName) ?>">
+  <meta name="copyright" content="© <?= date('Y') ?> <?= esc($brandName) ?>">
+  <meta name="rating" content="general">
+  <meta name="referrer" content="origin-when-cross-origin">
+  <meta name="format-detection" content="telephone=yes">
   <title><?= esc($pageTitle) ?></title>
   <meta name="description" content="<?= esc($pageDescription) ?>">
   <meta name="robots" content="<?= $noIndex ? 'noindex, nofollow' : 'index, follow' ?>">
@@ -151,10 +169,19 @@ $ogImage = $ogImage ?? site_url() . '/assets/images/fivecodelab-og.svg';
   <?php endif; ?>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <!-- Preconnects + DNS prefetch for the asset CDNs to shave 60-120ms off cold starts (Core Web Vitals → LCP/TTFB) -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="assets/css/style.css" rel="stylesheet">
+  <!-- Branded favicons & web app manifest (improves brand recognition in search results and bookmarks) -->
+  <link rel="icon" type="image/svg+xml" href="assets/images/fivecodelab-logo.svg">
+  <link rel="apple-touch-icon" href="assets/images/fivecodelab-logo.svg">
+  <link rel="mask-icon" href="assets/images/fivecodelab-logo.svg" color="#003087">
+  <link rel="manifest" href="assets/manifest.webmanifest">
   <script>window.SITE_PHONE = '<?= esc($brandPhone) ?>'; window.CART_SLUGS = <?= json_encode(array_keys(cart())) ?>;</script>
 </head>
 <body data-brand-motion="<?= esc(setting_get('company_logo_motion', 'bounce')) ?>" data-brand-vibe="<?= esc(setting_get('company_brand_vibe', 'classic')) ?>">

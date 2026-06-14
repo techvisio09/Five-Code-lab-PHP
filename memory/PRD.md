@@ -18,29 +18,29 @@ Rebrand the existing storefront from "Maventech Software" to **Fivecodelab Softw
 - Optional: Emergent LLM key (AI chat), Stripe (payments), Resend (email)
 
 ## What's Been Implemented (2026-02-14)
-- **Branding**
-  - `config.php` updated: `SITE_BRAND`, `SITE_LEGAL`, `SITE_EMAIL`, `ADMIN_EMAIL`, `SITE_ADDRESS`, new `SITE_WEBMAIL` constant
-  - DB `settings` table updated for `company_name`, `company_email`, `company_address`, statement names and gateway merchant names
-  - All hardcoded "Maventech" strings replaced with "Fivecodelab" in PHP files (header, footer, account, checkout, about-us, reviews, email helpers, pdf templates, mailer, visitor_track)
-  - Promo code `MAVEN20` → `FIVE20` in header bar + deal bar
+- **Branding** — `config.php` constants, DB `settings` table, all hardcoded "Maventech" strings replaced site-wide; promo code `MAVEN20` → `FIVE20`.
 - **Custom Fivecodelab brand assets**
-  - **Mark SVG** (`assets/images/fivecodelab-logo.svg`): rounded navy/blue square with stylized "5" + signature yellow accent dot — rendered by `render_logo()` and used in navbar + footer (2 instances per page).
-  - **Wordmark SVG** (`assets/images/fivecodelab-wordmark.svg` + `assets/images/brand/fivecodelab-wordmark.svg`): full mark + "Fivecodelab Software / AUTHORIZED RESELLER" wordmark, plugged into invoices/PDFs (`includes/pdf.php`) and email templates (`includes/email.php`).
-  - **OG share SVG** (`assets/images/fivecodelab-og.svg`, 1200×630): branded social share image with brand mark + wordmark + tagline + yellow "Shop Now →" CTA — wired into `<meta property="og:image">` via `header.php`.
-- **Hero Orbit (front-page)** — mirrors fivecodelabsoftware.com
-  - `.hero-orbit` with 2 rotating dashed rings + **6 floating bouncing Office satellite icons** + **3D flip-and-fade central spotlight** cycling every 3.4s + floating yellow "Keys in 15–30 min" pill + ★ rating chip.
-  - Honours `prefers-reduced-motion`. Full `data-testid` coverage.
-- **PayPal-style theme overhaul** — clean white surfaces, navy `#003087` / `#0070BA` headings, yellow `#FFC439` CTAs.
-- **Comprehensive Dark Mode** — Elegant PayPal-dark theme (deep navy `#0A1330` bg, sky-blue `#7CD3FF` accents, yellow `#FFC439` highlights). Every text element verified visible:
-  - Hero (navy gradient + white headline + cyan accent), navbar (translucent indigo glass + white nav links), trustbar, deal bar
-  - Cards: dark indigo `#142046` surface, light-gray body copy, white headings, white product image wraps preserved so artwork pops
-  - Accordion: active state with light-cyan title on dark indigo bg
-  - Forms: navy inputs with blue focus ring
-  - Buttons: bright cyan `.btn-primary`, yellow CTAs, ghost buttons with light border
-  - Footer always navy with light-gray links + yellow hover
-  - Chat widget, cart popup, alerts, modals, tables all themed.
-- **Webmail link** in top trust bar + footer (Brand column + Support column)
-- **Google Maps** auto-resolves to Moreno Valley via dynamic `urlencode($brandAddress)`
+  - Mark SVG (`assets/images/fivecodelab-logo.svg`) — used in navbar + footer
+  - Wordmark SVG (`assets/images/fivecodelab-wordmark.svg` + `brand/fivecodelab-wordmark.svg`) — used in invoices/PDF receipts + email templates
+  - OG share SVG (`assets/images/fivecodelab-og.svg`, 1200×630) — wired into `og:image` meta
+  - PWA web manifest (`assets/manifest.webmanifest`) — shortcuts for Shop, Office 2024, Windows 11, Antivirus, Contact
+- **Hero Orbit** — 6 floating Office satellite icons + 3D flip-and-fade central spotlight (3.4s cycle)
+- **PayPal-style theme** + **comprehensive Dark Mode** (every word legible)
+- **Toll-free number visibility** — navy-on-yellow navbar pill, weight 700 (not 800); white-with-yellow-icon trust bar phone
+- **Elegant footer redesign** — `.footer-elegant` layer on top of `.footer-dark`:
+  - Refined newsletter band with INSIDER DEALS eyebrow + 81%-off pill + yellow Join CTA + trust strip
+  - Brand column with icon-pill contact list (phone, email, webmail, address, hours)
+  - Polished red Google Maps button with eyebrow + bold label + arrow
+  - Yellow underline accents under each column heading, '›' bullet hover on links
+  - Social circles with yellow hover, Schema.org `WPFooter` + nested `Organization`/`PostalAddress` microdata
+- **DB content sweep** — every long-form content table (`blog_posts`, `pages`, `email_templates`, `email_template_versions`, `email_outbox`, `faqs`, `lead_notes`, `products`, `testimonials`, `customer_reviews`) now has zero "Maventech" mentions. Email addresses, statement names, merchant names all rebranded.
+- **`database.sql` refresh** — fresh-pod seed now comes up branded as Fivecodelab Software, with the new Moreno Valley address and admin email.
+- **`llms.txt` + `robots.txt` rebrand** — AI crawler allow-list + structured site index now reference Fivecodelab.
+- **SEO + AI-Search visibility pass** (header.php + index.php):
+  - JSON-LD: `Organization`, `LocalBusiness`, `WebSite` (existing), **+ `FAQPage`** (homepage FAQ → rich snippets / AI ingestion), **+ `BreadcrumbList`**, **+ `ItemList` of best-selling Products with Offers + Brand + Seller** — 17 schema types per home page render
+  - Meta: `theme-color` (light + dark), `color-scheme`, `apple-mobile-web-app-title`, `geo.region`/`geo.placename`/`geo.position`/`ICBM` (Moreno Valley CA), `content-language`, `author`/`publisher`/`copyright`, `referrer`, `format-detection`
+  - Performance: `preconnect`+`dns-prefetch` to jsdelivr + Google Fonts, `loading="lazy"` already on product/post imgs, branded favicons (svg + apple-touch + mask-icon)
+  - Accessibility: ARIA labels on social/map/contact links, `role="contentinfo"` on footer, `visually-hidden` label on newsletter input, `aria-label` on `<nav class="legal-links">`
 - **Admin credentials**: `services@fivecodelabsoftware.com` / `Fivecode@2026!`
 
 ## Test Status

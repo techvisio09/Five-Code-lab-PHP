@@ -1,0 +1,25 @@
+{
+  "name": "Fivecodelab Software",
+  "short_name": "Fivecodelab",
+  "description": "Genuine Microsoft Office, Windows and antivirus license keys at up to 81% off. Instant digital delivery in 15-30 minutes, lifetime activation, 30-day money-back guarantee.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#003087",
+  "orientation": "any",
+  "lang": "en-US",
+  "categories": ["business", "shopping", "productivity"],
+  "icons": [
+    { "src": "images/fivecodelab-logo.svg", "sizes": "any",       "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "images/fivecodelab-logo.svg", "sizes": "192x192",   "type": "image/svg+xml" },
+    { "src": "images/fivecodelab-logo.svg", "sizes": "512x512",   "type": "image/svg+xml" }
+  ],
+  "shortcuts": [
+    { "name": "Shop",          "url": "/shop.php",     "icons": [{ "src": "images/fivecodelab-logo.svg", "type": "image/svg+xml" }] },
+    { "name": "Microsoft Office 2024", "url": "/category.php?slug=office-2024-pc" },
+    { "name": "Windows 11",    "url": "/category.php?slug=windows-11" },
+    { "name": "Antivirus",     "url": "/category.php?slug=antivirus" },
+    { "name": "Contact",       "url": "/contact.php" }
+  ]
+}

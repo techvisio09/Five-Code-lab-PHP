@@ -2481,3 +2481,256 @@ body .btn-primary:focus {
   background: linear-gradient(90deg, #4DA9F0, #7CD3FF 50%, var(--pp-yellow)) !important;
 }
 
+
+/* ============================================================
+   Elegant Footer (.footer-elegant) — PayPal-inspired polish
+   Layered onto the existing .footer-dark navy base.
+   ============================================================ */
+.footer-elegant {
+  position: relative;
+  background:
+    radial-gradient(900px 380px at 12% -10%, rgba(0,112,186,.22), transparent 60%),
+    radial-gradient(800px 360px at 100% 0%,  rgba(255,196,57,.10), transparent 65%),
+    linear-gradient(180deg, #022049 0%, #050B1F 100%) !important;
+  color: #d9e0ec;
+  overflow: hidden;
+}
+.footer-elegant::before {
+  content: '';
+  position: absolute; inset: 0 0 auto 0; height: 2px;
+  background: linear-gradient(90deg, transparent 0%, #0070BA 30%, #FFC439 60%, transparent 100%);
+  opacity: .55;
+}
+
+/* Newsletter band */
+.footer-elegant .footer-newsletter {
+  background: linear-gradient(180deg, rgba(0,112,186,.10) 0%, transparent 100%);
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.footer-eyebrow {
+  display: inline-block;
+  font-size: .68rem; font-weight: 800; letter-spacing: .22em;
+  color: var(--pp-yellow, #FFC439);
+  background: rgba(255,196,57,.10);
+  border: 1px solid rgba(255,196,57,.32);
+  border-radius: 999px;
+  padding: .25rem .7rem;
+  text-transform: uppercase;
+}
+.footer-newsletter-title {
+  font-size: clamp(1.6rem, 2.6vw, 2.1rem) !important;
+  line-height: 1.2;
+  color: #ffffff !important;
+  letter-spacing: -.01em;
+}
+.footer-savings-pill {
+  background: var(--pp-yellow, #FFC439);
+  color: #142C8E;
+  padding: .05em .55em;
+  border-radius: 999px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.footer-newsletter-sub {
+  color: #b6c0d4;
+  font-size: .92rem;
+  max-width: 480px;
+}
+.footer-newsletter-form { max-width: 460px; margin-left: auto; }
+.footer-newsletter-input {
+  background: rgba(255,255,255,.06) !important;
+  border: 1px solid rgba(255,255,255,.18) !important;
+  color: #ffffff !important;
+  height: 48px;
+  font-size: .95rem;
+}
+.footer-newsletter-input::placeholder { color: #94a0b8 !important; }
+.footer-newsletter-input:focus {
+  background: rgba(255,255,255,.10) !important;
+  border-color: var(--pp-yellow, #FFC439) !important;
+  box-shadow: 0 0 0 .2rem rgba(255,196,57,.2) !important;
+  color: #ffffff !important;
+}
+.footer-newsletter-btn {
+  background: var(--pp-yellow, #FFC439) !important;
+  color: #142C8E !important;
+  border: none !important;
+  height: 48px;
+  box-shadow: 0 6px 16px rgba(255,196,57,.35);
+  transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.footer-newsletter-btn:hover {
+  background: var(--pp-yellow-dk, #F5BC00) !important;
+  color: #142C8E !important;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(255,196,57,.5);
+}
+.footer-newsletter-trust {
+  font-size: .76rem;
+  color: #94a0b8;
+}
+.footer-newsletter-trust span i { color: var(--pp-yellow, #FFC439); margin-right: .25rem; }
+
+/* Brand column */
+.footer-elegant .brand-text { color: #fff !important; }
+.footer-elegant .brand-tag { color: #94a0b8; }
+.footer-brand-tagline { font-size: .9rem; line-height: 1.55; color: #c0c9da; margin-bottom: 1.1rem; }
+.footer-brand-tagline strong { color: #ffffff; font-weight: 600; }
+
+/* Contact list */
+.footer-contact { font-size: .88rem; }
+.footer-contact li {
+  display: flex; align-items: flex-start; gap: .65rem;
+  padding: .35rem 0;
+  color: #c0c9da;
+  line-height: 1.5;
+}
+.footer-contact a { color: #ffffff; text-decoration: none; transition: color .15s ease; }
+.footer-contact a:hover { color: var(--pp-yellow, #FFC439); }
+.footer-contact-icon {
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  background: rgba(0,112,186,.22);
+  color: #7CD3FF;
+  font-size: .8rem;
+  border: 1px solid rgba(124,211,255,.18);
+}
+
+/* "View on Google Maps" elegant CTA */
+.footer-map-btn {
+  display: inline-flex; align-items: center; gap: .75rem;
+  padding: .65rem 1rem;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(0,112,186,.18), rgba(0,48,135,.32));
+  border: 1px solid rgba(124,211,255,.25);
+  color: #ffffff !important;
+  text-decoration: none;
+  transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.footer-map-btn:hover {
+  background: linear-gradient(135deg, rgba(0,112,186,.28), rgba(0,48,135,.5));
+  border-color: var(--pp-yellow, #FFC439);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(0,0,0,.35);
+  color: #ffffff !important;
+}
+.footer-map-btn .gmap-pin {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px;
+  background: #DB4437;
+  color: #fff;
+  border-radius: 10px 10px 10px 4px;
+  font-size: 1rem;
+  box-shadow: 0 4px 10px rgba(219,68,55,.4);
+}
+.footer-map-btn-text small { color: #94a0b8; font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; line-height: 1; }
+.footer-map-btn-text strong { color: #fff; font-size: .9rem; }
+
+/* Social icons */
+.footer-social { display: flex; gap: .55rem; }
+.footer-social .social-circle {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.12);
+  color: #ffffff;
+  text-decoration: none;
+  transition: transform .18s ease, background .18s ease, border-color .18s ease, color .18s ease;
+}
+.footer-social .social-circle:hover {
+  background: var(--pp-yellow, #FFC439);
+  border-color: var(--pp-yellow, #FFC439);
+  color: #142C8E;
+  transform: translateY(-2px);
+}
+
+/* Link columns — refined hierarchy */
+.footer-elegant h6 {
+  color: #ffffff !important;
+  font-size: .82rem !important;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  font-weight: 800;
+  margin-bottom: 1rem !important;
+  position: relative;
+  padding-bottom: .55rem;
+}
+.footer-elegant h6::after {
+  content: '';
+  position: absolute; left: 0; bottom: 0;
+  width: 28px; height: 2px;
+  background: var(--pp-yellow, #FFC439);
+  border-radius: 2px;
+}
+.footer-elegant ul.list-unstyled a {
+  color: #b6c0d4;
+  text-decoration: none;
+  font-size: .88rem;
+  display: inline-flex; align-items: center; gap: .35rem;
+  transition: color .15s ease, transform .15s ease, padding-left .15s ease;
+  position: relative;
+}
+.footer-elegant ul.list-unstyled a::before {
+  content: '›';
+  color: var(--pp-yellow, #FFC439);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity .18s ease, transform .18s ease;
+  font-weight: 700;
+}
+.footer-elegant ul.list-unstyled a:hover {
+  color: #ffffff;
+  padding-left: .35rem;
+}
+.footer-elegant ul.list-unstyled a:hover::before {
+  opacity: 1;
+  transform: translateX(0);
+  position: absolute; left: -.55rem;
+}
+
+/* Secure payments / reviews band */
+.footer-elegant hr.border-secondary {
+  border-color: rgba(255,255,255,.10) !important;
+  opacity: 1;
+  margin: 2.5rem 0 2rem;
+}
+.footer-elegant .small.fw-bold.text-white { letter-spacing: .12em; text-transform: uppercase; font-size: .72rem !important; }
+
+/* Trust badges (Microsoft Verified + PCI) */
+.footer-elegant .trust-badge-img { height: 44px; filter: brightness(1.05) drop-shadow(0 4px 10px rgba(0,0,0,.3)); }
+
+/* Trademark / legal row */
+.footer-elegant p.text-center { color: #94a0b8 !important; font-size: .78rem !important; line-height: 1.7; }
+.footer-elegant .legal-links a { color: #94a0b8; text-decoration: none; font-size: .78rem; transition: color .15s ease; padding: .15rem .55rem; }
+.footer-elegant .legal-links a:hover { color: #ffffff; }
+.footer-elegant .legal-links .legal-sep { color: rgba(255,255,255,.18); }
+
+/* Final copyright */
+.footer-elegant .footer-copyright {
+  text-align: center;
+  font-size: .78rem;
+  color: #94a0b8;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+.footer-elegant .footer-copyright strong { color: #ffffff; font-weight: 700; }
+
+/* Dark mode keeps same elegance (footer is always dark) */
+[data-bs-theme="dark"] .footer-elegant { background:
+  radial-gradient(900px 380px at 12% -10%, rgba(0,112,186,.18), transparent 60%),
+  radial-gradient(800px 360px at 100% 0%, rgba(255,196,57,.08), transparent 65%),
+  linear-gradient(180deg, #02143A 0%, #02050F 100%) !important; }
+
+/* Responsive newsletter — center on mobile */
+@media (max-width: 991.98px) {
+  .footer-newsletter-form { margin: 0 auto; }
+  .footer-newsletter-trust { justify-content: center !important; }
+}
+@media (max-width: 575px) {
+  .footer-newsletter-form { flex-direction: column; }
+  .footer-newsletter-btn { width: 100%; }
+}
+

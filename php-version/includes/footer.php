@@ -1,33 +1,40 @@
 <?php /* Footer + chat widget + scripts */ ?>
-<footer class="footer-dark pt-0 pb-4 mt-5">
+<footer class="footer-dark footer-elegant pt-0 pb-4 mt-5" itemscope itemtype="https://schema.org/WPFooter" role="contentinfo">
 
-  <!-- Newsletter band -->
-  <div class="border-bottom border-secondary-subtle" style="border-color: rgba(255,255,255,.12) !important;">
-    <div class="container text-center py-5">
-      <h3 class="text-white fw-bold fs-2">Join our list and save up to <span style="color:#67e8f9;">81%</span></h3>
-      <p class="small mb-4">Subscribe and receive exclusive weekly deals straight to your inbox!</p>
-      <form class="d-flex gap-2 mx-auto" style="max-width: 420px;" onsubmit="subscribeNewsletter(event)">
-        <input type="email" required class="form-control rounded-pill px-3" placeholder="Enter your email" data-testid="newsletter-email">
-        <button class="btn btn-primary rounded-pill px-4 fw-semibold" type="submit" data-testid="newsletter-join">Join</button>
-      </form>
-      <div class="d-flex justify-content-center gap-4 flex-wrap small mt-4">
-        <span><i class="bi bi-patch-check-fill text-success me-1"></i>Genuine Products</span>
-        <span><i class="bi bi-lightning-charge-fill text-warning me-1"></i>Instant Delivery</span>
-        <span><i class="bi bi-people-fill text-info me-1"></i>50,000+ Customers</span>
-        <span><i class="bi bi-headset text-primary me-1"></i>Expert Support</span>
+  <!-- Newsletter band — refined PayPal-elegant layout -->
+  <div class="footer-newsletter">
+    <div class="container py-5">
+      <div class="row align-items-center g-4">
+        <div class="col-lg-7 text-center text-lg-start">
+          <span class="footer-eyebrow"><i class="bi bi-envelope-paper-heart me-2"></i>Insider Deals</span>
+          <h3 class="text-white fw-bold mb-2 mt-2 footer-newsletter-title">Join 50,000+ savers and save up to <span class="footer-savings-pill">81% off</span></h3>
+          <p class="footer-newsletter-sub mb-0">One short email per week — fresh Microsoft Office + antivirus deals, activation tips, no spam.</p>
+        </div>
+        <div class="col-lg-5">
+          <form class="footer-newsletter-form d-flex gap-2" onsubmit="subscribeNewsletter(event)" aria-label="Newsletter signup">
+            <label class="visually-hidden" for="footer-newsletter-email">Email address</label>
+            <input id="footer-newsletter-email" type="email" required class="form-control rounded-pill px-4 footer-newsletter-input" placeholder="you@email.com" data-testid="newsletter-email" autocomplete="email">
+            <button class="btn footer-newsletter-btn rounded-pill px-4 fw-bold" type="submit" data-testid="newsletter-join">Join free <i class="bi bi-arrow-right ms-1"></i></button>
+          </form>
+          <div class="d-flex justify-content-center justify-content-lg-end gap-3 flex-wrap mt-3 footer-newsletter-trust">
+            <span><i class="bi bi-shield-lock-fill"></i> No spam</span>
+            <span><i class="bi bi-x-circle"></i> Unsubscribe anytime</span>
+            <span><i class="bi bi-patch-check-fill"></i> Genuine deals</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
   <div class="container pt-5">
-    <div class="row g-4">
+    <div class="row g-4 g-lg-5">
       <!-- Brand column -->
-      <div class="col-lg-4">
-        <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="col-lg-4" itemscope itemtype="https://schema.org/Organization">
+        <a href="index.php" class="d-inline-flex align-items-center gap-2 mb-3 text-decoration-none" itemprop="url" aria-label="<?= esc($brandName) ?> — Home" data-testid="footer-brand-link">
           <?php if (!empty($brandLogo)): ?>
-            <img src="<?= esc($brandLogo) ?>" alt="<?= esc($brandName) ?>" style="height:42px;width:auto;max-width:140px;object-fit:contain;">
+            <img src="<?= esc($brandLogo) ?>" alt="<?= esc($brandName) ?> logo" style="height:46px;width:auto;max-width:160px;object-fit:contain;" itemprop="logo">
           <?php else: ?>
-            <?= render_logo(42) ?>
+            <?= render_logo(46) ?>
           <?php endif; ?>
           <span>
             <?php
@@ -35,30 +42,32 @@
               $bnLast  = array_pop($bnParts) ?: '';
               $bnHead  = implode(' ', $bnParts);
             ?>
-            <span class="brand-text d-block lh-1 text-white"><?= esc($bnHead) ?><?php if ($bnHead !== ''): ?> <?php endif; ?><span class="brand-grad"><?= esc($bnLast) ?></span></span>
+            <span class="brand-text d-block lh-1 text-white" itemprop="name"><?= esc($bnHead) ?><?php if ($bnHead !== ''): ?> <?php endif; ?><span class="brand-grad"><?= esc($bnLast) ?></span></span>
             <small class="brand-tag">AUTHORIZED RESELLER</small>
           </span>
-        </div>
-        <p class="small">Your trusted source for genuine Microsoft Office licenses at competitive prices. Instant delivery, lifetime licenses, and professional support.</p>
-
-        <div class="small fw-bold text-white mb-2">Subscribe for Deals</div>
-        <form class="d-flex gap-2 mb-3" style="max-width: 320px;" onsubmit="subscribeNewsletter(event)">
-          <input type="email" required class="form-control form-control-sm" placeholder="Enter your email">
-          <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-arrow-right"></i></button>
-        </form>
-
-        <p class="small mb-1"><i class="bi bi-telephone me-2 text-info"></i><a href="tel:<?= esc($brandPhone) ?>"><?= esc($brandPhone) ?></a></p>
-        <p class="small mb-1"><i class="bi bi-envelope me-2 text-info"></i><a href="mailto:<?= esc($brandEmail) ?>"><?= esc($brandEmail) ?></a></p>
-        <p class="small mb-1"><i class="bi bi-envelope-paper me-2 text-info"></i><a href="<?= defined('SITE_WEBMAIL') ? esc(SITE_WEBMAIL) : '#' ?>" target="_blank" rel="noopener" data-testid="footer-webmail-link">Webmail Login</a></p>
-        <p class="small mb-2"><i class="bi bi-geo-alt me-2 text-info"></i><?= esc($brandAddress) ?></p>
-        <a href="https://www.google.com/maps/search/?api=1&query=<?= urlencode($brandAddress) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light rounded-pill mb-2 gmap-btn" data-testid="footer-gmap-btn">
-          <span class="gmap-pin"><i class="bi bi-geo-alt-fill"></i></span>View on Google Maps
         </a>
-        <p class="small mb-3"><i class="bi bi-clock me-2 text-info"></i><?= SITE_HOURS ?></p>
+        <p class="footer-brand-tagline" itemprop="description">Your trusted source for <strong>genuine Microsoft Office, Windows and antivirus</strong> license keys at up to 81% off. Instant digital delivery in 15-30 minutes, lifetime activation, expert support.</p>
 
-        <div class="d-flex gap-2">
-          <?php foreach ([['Facebook', 'bi-facebook'], ['Twitter', 'bi-twitter-x'], ['LinkedIn', 'bi-linkedin'], ['Instagram', 'bi-instagram']] as [$sn, $si]): ?>
-            <a href="#top" aria-label="<?= $sn ?>" class="social-circle"><i class="bi <?= $si ?>"></i></a>
+        <ul class="footer-contact list-unstyled mb-3">
+          <li><span class="footer-contact-icon"><i class="bi bi-telephone-fill"></i></span><a href="tel:<?= esc($brandPhone) ?>" itemprop="telephone"><?= esc($brandPhone) ?></a></li>
+          <li><span class="footer-contact-icon"><i class="bi bi-envelope-fill"></i></span><a href="mailto:<?= esc($brandEmail) ?>" itemprop="email"><?= esc($brandEmail) ?></a></li>
+          <li><span class="footer-contact-icon"><i class="bi bi-envelope-paper"></i></span><a href="<?= defined('SITE_WEBMAIL') ? esc(SITE_WEBMAIL) : '#' ?>" target="_blank" rel="noopener" data-testid="footer-webmail-link">Webmail Login <i class="bi bi-box-arrow-up-right small ms-1"></i></a></li>
+          <li itemprop="address" itemscope itemtype="https://schema.org/PostalAddress"><span class="footer-contact-icon"><i class="bi bi-geo-alt-fill"></i></span><span itemprop="streetAddress"><?= esc($brandAddress) ?></span></li>
+          <li><span class="footer-contact-icon"><i class="bi bi-clock-fill"></i></span><?= SITE_HOURS ?></li>
+        </ul>
+
+        <a href="https://www.google.com/maps/search/?api=1&query=<?= urlencode($brandAddress) ?>" target="_blank" rel="noopener" class="footer-map-btn" data-testid="footer-gmap-btn" aria-label="Open address in Google Maps">
+          <span class="gmap-pin"><i class="bi bi-geo-alt-fill"></i></span>
+          <span class="footer-map-btn-text">
+            <small class="d-block">View location on</small>
+            <strong>Google Maps</strong>
+          </span>
+          <i class="bi bi-arrow-up-right ms-2"></i>
+        </a>
+
+        <div class="footer-social mt-3" aria-label="Social media">
+          <?php foreach ([['Facebook','bi-facebook'],['Twitter','bi-twitter-x'],['LinkedIn','bi-linkedin'],['Instagram','bi-instagram']] as [$sn,$si]): ?>
+            <a href="#top" aria-label="<?= esc($brandName) ?> on <?= $sn ?>" class="social-circle" rel="noopener" target="_blank"><i class="bi <?= $si ?>"></i></a>
           <?php endforeach; ?>
         </div>
       </div>
@@ -137,7 +146,7 @@
     <!-- Trademark + legal -->
     <hr class="border-secondary my-4">
     <p class="small text-center mx-auto" style="max-width: 760px;">Microsoft®, Office®, and Windows® are trademarks of Microsoft Corporation. <?= esc($brandName) ?> is independent of and not affiliated with Microsoft Corporation.</p>
-    <div class="d-flex justify-content-center flex-wrap gap-2 small mb-3">
+    <nav class="legal-links d-flex justify-content-center flex-wrap gap-2 small mb-3" aria-label="Legal & policies">
       <?php
       $legal = [
           ['Privacy Policy', 'page.php?slug=privacy-policy'], ['Terms of Service', 'page.php?slug=terms-of-service'],
@@ -146,10 +155,10 @@
           ['Do Not Sell My Info', 'page.php?slug=do-not-sell'], ['Disclaimer', 'page.php?slug=disclaimer'], ['Sitemap', 'sitemap.php'],
       ];
       foreach ($legal as $idx => [$ll, $lh]): ?>
-        <a href="<?= $lh ?>"><?= $ll ?></a><?= $idx < count($legal) - 1 ? '<span class="text-secondary">|</span>' : '' ?>
+        <a href="<?= $lh ?>"><?= $ll ?></a><?= $idx < count($legal) - 1 ? '<span class="legal-sep">|</span>' : '' ?>
       <?php endforeach; ?>
-    </div>
-    <div class="text-center small">© <?= date('Y') ?> <?= esc($brandName) ?>. All rights reserved.</div>
+    </nav>
+    <div class="footer-copyright">© <?= date('Y') ?> <strong><?= esc($brandName) ?></strong>. All rights reserved.</div>
   </div>
 </footer>
 
