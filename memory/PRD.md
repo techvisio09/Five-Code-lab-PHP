@@ -22,25 +22,26 @@ Rebrand the existing storefront from "Maventech Software" to **Fivecodelab Softw
   - `config.php` updated: `SITE_BRAND`, `SITE_LEGAL`, `SITE_EMAIL`, `ADMIN_EMAIL`, `SITE_ADDRESS`, new `SITE_WEBMAIL` constant
   - DB `settings` table updated for `company_name`, `company_email`, `company_address`, statement names and gateway merchant names
   - All hardcoded "Maventech" strings replaced with "Fivecodelab" in PHP files (header, footer, account, checkout, about-us, reviews, email helpers, pdf templates, mailer, visitor_track)
-  - Promo code `MAVEN20` → `FIVE20` in header bar + deal bar (coupons table mapping in `functions.php` still accepts both)
-- **Custom Fivecodelab SVG brand mark**
-  - `render_logo()` now emits a polished PayPal-style mark for Fivecodelab brand: rounded navy/blue gradient square with a stylized "5", glassy highlight, and a signature yellow accent dot
-  - Used automatically by the **navbar** and **footer** (no upload needed; previous DB `company_logo` setting cleared so the custom SVG wins)
-  - Standalone asset also saved to `/app/php-version/assets/images/fivecodelab-logo.svg`
-- **Hero Orbit (new front-page hero matching fivecodelabsoftware.com)**
-  - Replaced `hero-showcase` markup in `/app/php-version/index.php` with `.hero-orbit` containing:
-    - 2 rotating dashed concentric rings (outer 28s clockwise, inner 18s counter-clockwise)
-    - 6 floating Microsoft Office satellite icons (Word/Excel/PowerPoint/Outlook/Access/Windows) with independent bouncing/rotation animations
-    - 3D flip-and-fade central spotlight that cycles through the 6 apps every 3.4s with name + tagline caption ("FEATURED — Microsoft Word — Documents · Lifetime License")
-    - Floating yellow "Keys in 15-30 min" pill + white "★ 4.6/5" rating chip
-  - Pure CSS rings/animations + ~60 lines of JS in `main.js` for the cycling
-  - Honours `prefers-reduced-motion`
-- **PayPal-style theme overhaul**
-  - All cyan/teal/orange hex tokens swapped to PayPal palette via in-place rewrite of `assets/css/style.css`
-  - Appended PayPal polish layer (clean white hero, navy headings, yellow Shop Now button, navy footer/topbar, blue chat bubble, etc.)
-- **Webmail link** in top trust bar AND footer (brand column + Support column)
+  - Promo code `MAVEN20` → `FIVE20` in header bar + deal bar
+- **Custom Fivecodelab brand assets**
+  - **Mark SVG** (`assets/images/fivecodelab-logo.svg`): rounded navy/blue square with stylized "5" + signature yellow accent dot — rendered by `render_logo()` and used in navbar + footer (2 instances per page).
+  - **Wordmark SVG** (`assets/images/fivecodelab-wordmark.svg` + `assets/images/brand/fivecodelab-wordmark.svg`): full mark + "Fivecodelab Software / AUTHORIZED RESELLER" wordmark, plugged into invoices/PDFs (`includes/pdf.php`) and email templates (`includes/email.php`).
+  - **OG share SVG** (`assets/images/fivecodelab-og.svg`, 1200×630): branded social share image with brand mark + wordmark + tagline + yellow "Shop Now →" CTA — wired into `<meta property="og:image">` via `header.php`.
+- **Hero Orbit (front-page)** — mirrors fivecodelabsoftware.com
+  - `.hero-orbit` with 2 rotating dashed rings + **6 floating bouncing Office satellite icons** + **3D flip-and-fade central spotlight** cycling every 3.4s + floating yellow "Keys in 15–30 min" pill + ★ rating chip.
+  - Honours `prefers-reduced-motion`. Full `data-testid` coverage.
+- **PayPal-style theme overhaul** — clean white surfaces, navy `#003087` / `#0070BA` headings, yellow `#FFC439` CTAs.
+- **Comprehensive Dark Mode** — Elegant PayPal-dark theme (deep navy `#0A1330` bg, sky-blue `#7CD3FF` accents, yellow `#FFC439` highlights). Every text element verified visible:
+  - Hero (navy gradient + white headline + cyan accent), navbar (translucent indigo glass + white nav links), trustbar, deal bar
+  - Cards: dark indigo `#142046` surface, light-gray body copy, white headings, white product image wraps preserved so artwork pops
+  - Accordion: active state with light-cyan title on dark indigo bg
+  - Forms: navy inputs with blue focus ring
+  - Buttons: bright cyan `.btn-primary`, yellow CTAs, ghost buttons with light border
+  - Footer always navy with light-gray links + yellow hover
+  - Chat widget, cart popup, alerts, modals, tables all themed.
+- **Webmail link** in top trust bar + footer (Brand column + Support column)
 - **Google Maps** auto-resolves to Moreno Valley via dynamic `urlencode($brandAddress)`
-- **Admin credentials**: DB user row updated; saved to `/app/memory/test_credentials.md`
+- **Admin credentials**: `services@fivecodelabsoftware.com` / `Fivecode@2026!`
 
 ## Test Status
 - Smoke test screenshots: home + footer band — PayPal theme is rendering correctly

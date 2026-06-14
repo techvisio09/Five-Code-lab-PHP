@@ -23,7 +23,7 @@ if (!isset($canonicalUrl)) {
     $canonicalSlug = isset($_GET['slug']) && $_GET['slug'] !== '' ? '?slug=' . urlencode($_GET['slug']) : '';
     $canonicalUrl = site_url() . $canonicalPath . $canonicalSlug;
 }
-$ogImage = $ogImage ?? site_url() . '/assets/images/badges/microsoft-verified.svg';
+$ogImage = $ogImage ?? site_url() . '/assets/images/fivecodelab-og.svg';
 ?>
 <!DOCTYPE html>
 <html lang="en">

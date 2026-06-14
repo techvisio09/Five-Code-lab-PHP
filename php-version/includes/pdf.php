@@ -234,7 +234,7 @@ function generate_receipt_pdf(array $order, array $items, ?array $payment = null
 
     $html = _pdf_shell([
         'co'              => $co,
-        'logo'            => __DIR__ . '/../assets/images/brand/email-logo.gif',
+        'logo'            => __DIR__ . '/../assets/images/brand/fivecodelab-wordmark.svg',
         'title'           => 'Receipt',
         'invoice_number'  => $invoiceNo,
         'receipt_number'  => $receiptNo,
@@ -310,7 +310,7 @@ function generate_invoice_pdf(array $order, array $items): string
 
     $html = _pdf_shell([
         'co'              => $co,
-        'logo'            => __DIR__ . '/../assets/images/brand/email-logo.gif',
+        'logo'            => __DIR__ . '/../assets/images/brand/fivecodelab-wordmark.svg',
         'title'           => 'Invoice',
         'invoice_number'  => $invoiceNo,
         'date_issued'     => $dateIssued,

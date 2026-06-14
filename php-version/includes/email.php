@@ -485,7 +485,7 @@ function default_email_template(): string {
   </div>
   <div style="background:#ffffff;padding:26px 32px;border-bottom:1px solid #f1f3f5;display:flex;align-items:center;justify-content:space-between;">
     <div style="display:flex;align-items:center;gap:14px;">
-      <img src="{{site_url}}/assets/images/brand/email-logo.gif" alt="{{company_name}}" width="56" height="56" style="display:block;border-radius:14px;background:transparent;">
+      <img src="{{site_url}}/assets/images/brand/fivecodelab-wordmark.svg" alt="{{company_name}}" width="56" height="56" style="display:block;border-radius:14px;background:transparent;">
       <div>
         <div style="font-size:20px;font-weight:800;color:#0f172a;letter-spacing:.3px;">{{company_name}}</div>
         <div style="font-size:10px;color:#94a3b8;letter-spacing:1.8px;font-weight:600;">AUTHORIZED MICROSOFT RESELLER</div>

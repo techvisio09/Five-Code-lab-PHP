@@ -2152,3 +2152,313 @@ body .btn-primary:focus {
   .hero-orbit .hero-rating-chip { animation: none !important; }
 }
 
+
+/* ============================================================
+   Dark Mode — Elegant PayPal-dark theme
+   Goal: every word remains crisp & visible, the brand stays
+   recognizably "PayPal" (navy + sky-blue + yellow accents).
+   ============================================================ */
+[data-bs-theme="dark"] {
+  /* Palette overrides — deep navy surfaces, sky-blue accents */
+  --pp-bg:        #0A1330;         /* page background */
+  --pp-bg-soft:   #0F1B3F;         /* alt section bg */
+  --pp-text:      #E6EAF5;
+  --pp-text-soft: #A5B1CC;
+  --pp-border:    rgba(168, 200, 236, .18);
+  --pp-blue:      #4DA9F0;         /* lighter blue for dark surfaces */
+  --pp-blue-dark: #8AB8E8;         /* heading/link tone — clearly readable on navy */
+  --pp-navy:      #050B1F;         /* footer & toast deepest */
+  --pp-light:     #7CD3FF;
+  --pp-yellow:    #FFC439;
+  --pp-yellow-dk: #F5BC00;
+
+  /* Bootstrap tokens */
+  --bs-body-bg:        #0A1330;
+  --bs-body-color:     #E6EAF5;
+  --bs-emphasis-color: #ffffff;
+  --bs-secondary-color: #A5B1CC;
+  --bs-tertiary-bg:    #142046;
+  --bs-secondary-bg:   #182550;
+  --bs-border-color:   rgba(168, 200, 236, .18);
+  --bs-link-color:     #7CD3FF;
+  --bs-link-hover-color: #ffffff;
+  --bs-link-color-rgb: 124, 211, 255;
+  --bs-primary:        #4DA9F0;
+  --bs-primary-rgb:    77, 169, 240;
+}
+
+[data-bs-theme="dark"] body {
+  background: var(--pp-bg);
+  color: var(--pp-text);
+}
+
+/* Headings stay readable — light blue/white instead of dark navy */
+[data-bs-theme="dark"] h1,
+[data-bs-theme="dark"] h2,
+[data-bs-theme="dark"] h3,
+[data-bs-theme="dark"] h4,
+[data-bs-theme="dark"] h5,
+[data-bs-theme="dark"] h6,
+[data-bs-theme="dark"] .h1, [data-bs-theme="dark"] .h2, [data-bs-theme="dark"] .h3,
+[data-bs-theme="dark"] .h4, [data-bs-theme="dark"] .h5, [data-bs-theme="dark"] .h6,
+[data-bs-theme="dark"] .display-1, [data-bs-theme="dark"] .display-2, [data-bs-theme="dark"] .display-3,
+[data-bs-theme="dark"] .display-4, [data-bs-theme="dark"] .display-5, [data-bs-theme="dark"] .display-6 {
+  color: #ffffff;
+}
+
+/* Text utility classes */
+[data-bs-theme="dark"] .text-body        { color: #E6EAF5 !important; }
+[data-bs-theme="dark"] .text-secondary   { color: #A5B1CC !important; }
+[data-bs-theme="dark"] .text-muted       { color: #94A0BC !important; }
+[data-bs-theme="dark"] .text-primary     { color: #7CD3FF !important; }
+[data-bs-theme="dark"] .text-dark        { color: #E6EAF5 !important; }
+[data-bs-theme="dark"] .text-bg-light    { background: #182550 !important; color: #E6EAF5 !important; border-color: rgba(168,200,236,.16) !important; }
+[data-bs-theme="dark"] .badge.text-bg-light { background: #182550 !important; color: #E6EAF5 !important; }
+
+/* Brand wordmark in dark mode — light blue accent stays */
+[data-bs-theme="dark"] .brand-text       { color: #ffffff !important; }
+[data-bs-theme="dark"] .brand-grad,
+[data-bs-theme="dark"] .logo-3d .brand-grad { color: #7CD3FF !important; }
+[data-bs-theme="dark"] .brand-tag        { color: #A5B1CC !important; }
+
+/* Sticky navbar — translucent indigo glass */
+[data-bs-theme="dark"] .navbar.sticky-top {
+  background: rgba(10, 19, 48, .92) !important;
+  border-bottom: 1px solid rgba(168, 200, 236, .12) !important;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 1px 0 rgba(0,0,0,.25);
+}
+[data-bs-theme="dark"] .navbar .nav-link.fw-semibold         { color: #E6EAF5 !important; }
+[data-bs-theme="dark"] .navbar .nav-link.fw-semibold:hover   { color: #7CD3FF !important; }
+[data-bs-theme="dark"] .navbar .dropdown-menu                { background: #142046 !important; color: #E6EAF5 !important; border-color: rgba(168,200,236,.12) !important; box-shadow: 0 18px 38px rgba(0,0,0,.5) !important; }
+[data-bs-theme="dark"] .navbar .dropdown-menu .dropdown-item { color: #E6EAF5 !important; }
+[data-bs-theme="dark"] .navbar .dropdown-menu .dropdown-item:hover { background: #1B2A5E !important; color: #ffffff !important; }
+[data-bs-theme="dark"] .mega-year                            { color: #E6EAF5 !important; }
+[data-bs-theme="dark"] .mega-year:hover                      { color: #7CD3FF !important; }
+[data-bs-theme="dark"] .mega .mega-link, [data-bs-theme="dark"] .antivirus-menu .mega-link { color: #A5B1CC !important; }
+
+/* Promo bar / trust bar / deal bar — keep navy, tighten contrast */
+[data-bs-theme="dark"] .topbar     { background: #050B1F !important; color: #fff; }
+[data-bs-theme="dark"] .topbar strong { color: var(--pp-yellow) !important; }
+[data-bs-theme="dark"] .trustbar   { background: #02061A !important; color: #cfd6e0; }
+[data-bs-theme="dark"] .deal-bar   { background: #050B1F !important; color: #fff !important; box-shadow: 0 -6px 18px rgba(0,0,0,.5); }
+
+/* Hero — elegant dark navy surface with subtle radial wash */
+[data-bs-theme="dark"] .hero {
+  background:
+    radial-gradient(900px 540px at 8% -10%, rgba(77,169,240,.20), transparent 60%),
+    radial-gradient(700px 460px at 100% 110%, rgba(255,196,57,.10), transparent 65%),
+    #0A1330 !important;
+  color: #E6EAF5;
+  border-bottom: 1px solid rgba(168, 200, 236, .12);
+}
+[data-bs-theme="dark"] .hero::before { display: none; }
+[data-bs-theme="dark"] .hero h1         { color: #ffffff !important; }
+[data-bs-theme="dark"] .hero .accent    { color: #7CD3FF !important; }
+[data-bs-theme="dark"] .hero .text-secondary, [data-bs-theme="dark"] .hero ul li { color: #C5D0E8 !important; }
+[data-bs-theme="dark"] .hero ul li i    { color: #7CD3FF !important; }
+[data-bs-theme="dark"] .hero-badge {
+  color: #ffffff !important;
+  background: rgba(124, 211, 255, .12) !important;
+  border-color: rgba(124, 211, 255, .35) !important;
+}
+[data-bs-theme="dark"] .hero .hero-stats .fs-3 { color: #ffffff !important; }
+[data-bs-theme="dark"] .hero .hero-stats small { color: #A5B1CC !important; }
+[data-bs-theme="dark"] .btn-hero-ghost { background: transparent !important; color: #ffffff !important; border-color: rgba(255,255,255,.35) !important; }
+[data-bs-theme="dark"] .btn-hero-ghost:hover { background: rgba(124,211,255,.16) !important; color: #ffffff !important; border-color: #7CD3FF !important; }
+
+/* Hero Orbit — switch ring/icon colors to readable light-on-dark */
+[data-bs-theme="dark"] .hero-orbit .orbit-ring         { border-color: rgba(124,211,255,.28); }
+[data-bs-theme="dark"] .hero-orbit .orbit-ring--inner  { border-color: rgba(124,211,255,.45); }
+[data-bs-theme="dark"] .hero-orbit .orbit-icon         { background: #ffffff; border-color: rgba(168,200,236,.18); box-shadow: 0 14px 30px rgba(0,0,0,.45), 0 2px 6px rgba(0,0,0,.3); }
+[data-bs-theme="dark"] .hero-orbit .orbit-spotlight    { background: #ffffff; border-color: rgba(168,200,236,.18); box-shadow: 0 30px 70px rgba(0,0,0,.55), 0 10px 22px rgba(0,0,0,.4); }
+[data-bs-theme="dark"] .hero-orbit .orbit-spotlight-name { color: #ffffff !important; }
+[data-bs-theme="dark"] .hero-orbit .orbit-spotlight-tag  { color: #C5D0E8 !important; }
+[data-bs-theme="dark"] .hero-orbit .orbit-eyebrow {
+  color: #7CD3FF !important;
+  background: rgba(124,211,255,.12) !important;
+  border-color: rgba(124,211,255,.32) !important;
+}
+[data-bs-theme="dark"] .hero-orbit .hero-rating-chip.orbit-rating-chip {
+  background: #142046 !important;
+  color: #E6EAF5 !important;
+  border-color: rgba(168,200,236,.22) !important;
+  box-shadow: 0 12px 24px rgba(0,0,0,.45) !important;
+}
+
+/* Eyebrow labels — light cyan in dark mode */
+[data-bs-theme="dark"] .eyebrow { color: #7CD3FF !important; }
+
+/* Soft alt-section background */
+[data-bs-theme="dark"] .bg-soft { background: #0F1B3F !important; }
+
+/* Page head band (breadcrumbs / page title strip) */
+[data-bs-theme="dark"] .page-head { background: linear-gradient(180deg, #102047 0%, #0A1330 100%) !important; border-bottom-color: rgba(168,200,236,.14) !important; }
+[data-bs-theme="dark"] .breadcrumb-item, [data-bs-theme="dark"] .breadcrumb-item a { color: #C5D0E8 !important; }
+[data-bs-theme="dark"] .breadcrumb-item.active { color: #ffffff !important; }
+[data-bs-theme="dark"] .breadcrumb-item + .breadcrumb-item::before { color: #A5B1CC !important; }
+
+/* Cards — dark indigo surface with hairline */
+[data-bs-theme="dark"] .card {
+  background: #142046 !important;
+  color: #E6EAF5 !important;
+  border-color: rgba(168,200,236,.16) !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,.4) !important;
+}
+[data-bs-theme="dark"] .card a, [data-bs-theme="dark"] .card .text-body { color: #E6EAF5 !important; }
+[data-bs-theme="dark"] .card .text-secondary, [data-bs-theme="dark"] .card small.text-secondary { color: #A5B1CC !important; }
+[data-bs-theme="dark"] .product-card:hover { border-color: rgba(124,211,255,.4) !important; box-shadow: 0 16px 36px rgba(0,0,0,.5) !important; }
+[data-bs-theme="dark"] .product-card:hover .product-title { color: #7CD3FF !important; }
+/* Product image wrap stays light so colour artwork pops */
+[data-bs-theme="dark"] .product-card .product-img-wrap,
+[data-bs-theme="dark"] .product-img-wrap,
+[data-bs-theme="dark"] .strip-img,
+[data-bs-theme="dark"] .side-thumb,
+[data-bs-theme="dark"] .spotlight-img-wrap,
+[data-bs-theme="dark"] .shop-row-img { background: #ffffff !important; border-color: rgba(168,200,236,.18) !important; }
+[data-bs-theme="dark"] .bg-body-tertiary { background: #182550 !important; }
+
+/* Side product rows on home spotlight */
+[data-bs-theme="dark"] .side-product-row { background: #142046 !important; border-color: rgba(168,200,236,.16) !important; }
+[data-bs-theme="dark"] .side-product-row a, [data-bs-theme="dark"] .side-product-row .text-body { color: #E6EAF5 !important; }
+
+/* Mega menu accents */
+[data-bs-theme="dark"] .mega .mega-heading,
+[data-bs-theme="dark"] .antivirus-menu .mega-heading,
+[data-bs-theme="dark"] .filter-group-title { color: #7CD3FF !important; }
+
+/* Page-content (pages / policies) */
+[data-bs-theme="dark"] .page-content h2 { color: #ffffff !important; border-bottom-color: rgba(168,200,236,.22) !important; }
+[data-bs-theme="dark"] .page-content thead { background: #1B2A5E !important; color: #ffffff !important; }
+[data-bs-theme="dark"] .page-content table, [data-bs-theme="dark"] .page-content td, [data-bs-theme="dark"] .page-content th { border-color: rgba(168,200,236,.18) !important; color: #E6EAF5 !important; }
+
+/* Accordion (FAQ) */
+[data-bs-theme="dark"] .accordion-item { background: #142046 !important; border-color: rgba(168,200,236,.16) !important; }
+[data-bs-theme="dark"] .accordion-button { background: #142046 !important; color: #E6EAF5 !important; }
+[data-bs-theme="dark"] .accordion-button:not(.collapsed) { background: #1B2A5E !important; color: #7CD3FF !important; }
+[data-bs-theme="dark"] .accordion-button::after { filter: invert(.9) hue-rotate(170deg) brightness(1.3); }
+[data-bs-theme="dark"] .accordion-body { color: #C5D0E8 !important; background: #142046 !important; }
+
+/* Buttons */
+[data-bs-theme="dark"] .btn.btn-primary { background: #4DA9F0 !important; border-color: #4DA9F0 !important; color: #050B1F !important; font-weight: 800; }
+[data-bs-theme="dark"] .btn.btn-primary:hover { background: #7CD3FF !important; border-color: #7CD3FF !important; color: #050B1F !important; }
+[data-bs-theme="dark"] .btn-outline-primary { color: #7CD3FF !important; border-color: #7CD3FF !important; }
+[data-bs-theme="dark"] .btn-outline-primary:hover { background: #7CD3FF !important; color: #050B1F !important; border-color: #7CD3FF !important; }
+[data-bs-theme="dark"] .btn-outline-secondary { color: #C5D0E8 !important; border-color: rgba(168,200,236,.32) !important; background: transparent !important; }
+[data-bs-theme="dark"] .btn-outline-secondary:hover { background: rgba(124,211,255,.16) !important; color: #ffffff !important; border-color: #7CD3FF !important; }
+[data-bs-theme="dark"] .btn-light { background: #182550 !important; color: #E6EAF5 !important; border-color: rgba(168,200,236,.2) !important; }
+[data-bs-theme="dark"] .btn-light:hover { background: #1B2A5E !important; color: #ffffff !important; }
+/* Yellow CTAs stay bright yellow even in dark mode */
+[data-bs-theme="dark"] .btn-hero-cta { background: var(--pp-yellow) !important; color: #142C8E !important; border-color: var(--pp-yellow) !important; }
+[data-bs-theme="dark"] .btn-hero-cta:hover { background: var(--pp-yellow-dk) !important; color: #142C8E !important; }
+
+/* Forms */
+[data-bs-theme="dark"] .form-control, [data-bs-theme="dark"] .form-select {
+  background: #182550 !important;
+  border-color: rgba(168,200,236,.22) !important;
+  color: #E6EAF5 !important;
+}
+[data-bs-theme="dark"] .form-control::placeholder { color: #94A0BC !important; }
+[data-bs-theme="dark"] .form-control:focus, [data-bs-theme="dark"] .form-select:focus {
+  background: #182550 !important;
+  border-color: #4DA9F0 !important;
+  box-shadow: 0 0 0 .2rem rgba(77,169,240,.25) !important;
+  color: #ffffff !important;
+}
+[data-bs-theme="dark"] .form-check-label { color: #E6EAF5 !important; }
+[data-bs-theme="dark"] .input-group-text { background: #1B2A5E !important; color: #E6EAF5 !important; border-color: rgba(168,200,236,.22) !important; }
+
+/* Borders & dividers */
+[data-bs-theme="dark"] hr, [data-bs-theme="dark"] .border, [data-bs-theme="dark"] .border-top,
+[data-bs-theme="dark"] .border-bottom, [data-bs-theme="dark"] .border-secondary,
+[data-bs-theme="dark"] .border-secondary-subtle { border-color: rgba(168,200,236,.16) !important; }
+
+/* Tables (cart, account, admin) */
+[data-bs-theme="dark"] .table { --bs-table-color: #E6EAF5; --bs-table-bg: transparent; --bs-table-border-color: rgba(168,200,236,.18); }
+[data-bs-theme="dark"] .table thead { background: #1B2A5E; color: #ffffff; }
+[data-bs-theme="dark"] .table tbody tr { background: transparent; }
+[data-bs-theme="dark"] .table-light, [data-bs-theme="dark"] .table-light th, [data-bs-theme="dark"] .table-light td { background: #1B2A5E !important; color: #E6EAF5 !important; }
+
+/* Toolbar / Filter / Shop list */
+[data-bs-theme="dark"] .shop-toolbar { background: linear-gradient(90deg, rgba(124,211,255,.10), rgba(77,169,240,.06)) !important; border-color: rgba(124,211,255,.22) !important; color: #E6EAF5 !important; }
+[data-bs-theme="dark"] .ask-ai-pill   { background: linear-gradient(90deg, rgba(124,211,255,.14), rgba(77,169,240,.08)) !important; border-color: rgba(124,211,255,.28) !important; color: #E6EAF5 !important; }
+[data-bs-theme="dark"] .filter-card   { background: #142046 !important; }
+[data-bs-theme="dark"] .filter-check .form-check-input { background-color: #182550 !important; border-color: rgba(168,200,236,.32) !important; }
+[data-bs-theme="dark"] .filter-check .form-check-input:checked { background-color: #4DA9F0 !important; border-color: #4DA9F0 !important; }
+[data-bs-theme="dark"] .filter-count  { background: #1B2A5E !important; color: #C5D0E8 !important; }
+
+/* Chips/badges */
+[data-bs-theme="dark"] .cat-chip { background: #182550 !important; color: #E6EAF5 !important; border-color: rgba(168,200,236,.22) !important; }
+[data-bs-theme="dark"] .cat-chip:hover, [data-bs-theme="dark"] .cat-chip.active { background: #4DA9F0 !important; color: #050B1F !important; border-color: #4DA9F0 !important; }
+[data-bs-theme="dark"] .badge.text-bg-primary { background: rgba(77,169,240,.18) !important; color: #7CD3FF !important; }
+[data-bs-theme="dark"] .badge.text-bg-danger { background: rgba(225, 29, 72, .18) !important; color: #fda4af !important; }
+[data-bs-theme="dark"] .badge.text-bg-warning { background: var(--pp-yellow) !important; color: #142C8E !important; }
+[data-bs-theme="dark"] .badge.text-bg-success-subtle { background: rgba(124,211,255,.16) !important; color: #7CD3FF !important; }
+[data-bs-theme="dark"] .badge.text-bg-secondary-subtle { background: rgba(168,200,236,.16) !important; color: #E6EAF5 !important; }
+
+/* Alerts */
+[data-bs-theme="dark"] .alert { background: #142046 !important; border-color: rgba(168,200,236,.18) !important; color: #E6EAF5 !important; }
+[data-bs-theme="dark"] .alert-info { background: rgba(124,211,255,.12) !important; color: #7CD3FF !important; border-color: rgba(124,211,255,.32) !important; }
+[data-bs-theme="dark"] .alert-warning { background: rgba(255,196,57,.12) !important; color: #FFD46B !important; border-color: rgba(255,196,57,.4) !important; }
+[data-bs-theme="dark"] .alert-success { background: rgba(124,211,255,.12) !important; color: #7CD3FF !important; border-color: rgba(124,211,255,.32) !important; }
+[data-bs-theme="dark"] .alert-danger  { background: rgba(225,29,72,.14) !important; color: #fda4af !important; border-color: rgba(225,29,72,.4) !important; }
+
+/* Modals & popovers */
+[data-bs-theme="dark"] .modal-content { background: #142046 !important; color: #E6EAF5 !important; border-color: rgba(168,200,236,.18) !important; }
+[data-bs-theme="dark"] .modal-header, [data-bs-theme="dark"] .modal-footer { border-color: rgba(168,200,236,.16) !important; }
+[data-bs-theme="dark"] .modal-title { color: #ffffff !important; }
+[data-bs-theme="dark"] .btn-close { filter: invert(1) grayscale(.4) brightness(1.6); }
+
+/* Footer keeps the deep navy palette (works in both modes); refine link hover */
+[data-bs-theme="dark"] .footer-dark { background: #050B1F !important; }
+[data-bs-theme="dark"] .footer-dark a:hover { color: var(--pp-yellow) !important; }
+
+/* Chat widget */
+[data-bs-theme="dark"] #chat-panel { background: #142046 !important; color: #E6EAF5 !important; border-color: rgba(168,200,236,.18) !important; }
+[data-bs-theme="dark"] #chat-head { background: linear-gradient(135deg, #1B2A5E 0%, #050B1F 100%) !important; color: #ffffff !important; }
+[data-bs-theme="dark"] .chat-msg.bot { background: #1B2A5E !important; color: #E6EAF5 !important; }
+[data-bs-theme="dark"] .chat-chip { background: #182550 !important; color: #E6EAF5 !important; border-color: rgba(168,200,236,.22) !important; }
+[data-bs-theme="dark"] .chat-chip:hover { background: #1B2A5E !important; color: #7CD3FF !important; }
+[data-bs-theme="dark"] .chat-input-row { background: #142046 !important; border-color: rgba(168,200,236,.16) !important; }
+[data-bs-theme="dark"] .chat-input { background: #182550 !important; color: #E6EAF5 !important; border-color: rgba(168,200,236,.22) !important; }
+[data-bs-theme="dark"] .chat-talk-band { background: #050B1F !important; color: #C5D0E8 !important; }
+
+/* Toll-free pill (bottom-left) */
+[data-bs-theme="dark"] .tollfree-pill { background: #1B2A5E !important; color: #E6EAF5 !important; border-color: rgba(168,200,236,.22) !important; }
+[data-bs-theme="dark"] .tf-eyebrow { color: #A5B1CC !important; }
+[data-bs-theme="dark"] .tf-num     { color: #ffffff !important; }
+[data-bs-theme="dark"] .tf-free    { color: var(--pp-yellow) !important; }
+
+/* Add-to-Cart popup */
+[data-bs-theme="dark"] #cart-popup { background: #142046 !important; color: #E6EAF5 !important; border-color: rgba(168,200,236,.18) !important; box-shadow: 0 18px 40px rgba(0,0,0,.55) !important; }
+[data-bs-theme="dark"] .cp-name, [data-bs-theme="dark"] .cp-title { color: #ffffff !important; }
+[data-bs-theme="dark"] .cp-sub, [data-bs-theme="dark"] .cp-meta { color: #A5B1CC !important; }
+[data-bs-theme="dark"] .cp-thumb { background: #ffffff !important; }
+[data-bs-theme="dark"] .cp-btn-view { background: #1B2A5E !important; color: #E6EAF5 !important; border-color: rgba(168,200,236,.22) !important; }
+[data-bs-theme="dark"] .cp-btn-checkout { background: var(--pp-yellow) !important; color: #142C8E !important; }
+
+/* Toasts — navy gradient stays */
+[data-bs-theme="dark"] .mv-toast { background: linear-gradient(135deg, #1B2A5E 0%, #050B1F 100%) !important; border-color: rgba(124,211,255,.32) !important; }
+
+/* Selection */
+[data-bs-theme="dark"] ::selection { background: rgba(124, 211, 255, .28); color: #ffffff; }
+
+/* Misc utility — ensure any pinned light backgrounds still have legible text */
+[data-bs-theme="dark"] .bg-white, [data-bs-theme="dark"] .bg-body { background: #142046 !important; color: #E6EAF5 !important; }
+[data-bs-theme="dark"] .bg-light { background: #182550 !important; color: #E6EAF5 !important; }
+
+/* CTA band (homepage) — invert to a deep blue gradient that still pops */
+[data-bs-theme="dark"] [data-testid="cta-band"] {
+  background: linear-gradient(135deg, #050B1F, #1B2A5E) !important;
+  border: 1px solid rgba(124,211,255,.22);
+}
+
+/* Trust strip + tiny stat numbers */
+[data-bs-theme="dark"] .text-warning { color: var(--pp-yellow) !important; }
+[data-bs-theme="dark"] .text-success, [data-bs-theme="dark"] .text-info { color: #7CD3FF !important; }
+
+/* Spotlight strip on homepage Best Sellers — ensure the gradient bar pops */
+[data-bs-theme="dark"] .spotlight-card::before {
+  background: linear-gradient(90deg, #4DA9F0, #7CD3FF 50%, var(--pp-yellow)) !important;
+}
+
