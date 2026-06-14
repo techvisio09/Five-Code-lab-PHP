@@ -5834,6 +5834,122 @@ elseif ($tab === 'reviews'):
     </div>
   </div>
 
+<?php elseif ($tab === 'seo'):
+  require_once __DIR__ . '/includes/seo_ai.php';
+  seo_ensure_table();
+
+  // Run the daily pipeline on demand
+  $runResult = null;
+  if (($_POST['action'] ?? '') === 'seo_run_now') {
+      try {
+          $runResult = seo_run_daily((int)($_POST['max'] ?? 6));
+      } catch (Throwable $e) {
+          $runResult = ['error' => $e->getMessage()];
+      }
+  }
+
+  $cronTok = setting_get('seo_cron_token', '');
+  if ($cronTok === '') { $cronTok = bin2hex(random_bytes(8)); setting_set('seo_cron_token', $cronTok); }
+
+  $totalProducts = (int)db()->query('SELECT COUNT(*) FROM products')->fetchColumn();
+  $totalBlogs    = (int)db()->query('SELECT COUNT(*) FROM blog_posts')->fetchColumn();
+  $aiProducts    = (int)db()->query("SELECT COUNT(*) FROM seo_meta WHERE kind='product'")->fetchColumn();
+  $aiBlogs       = (int)db()->query("SELECT COUNT(*) FROM seo_meta WHERE kind='blog'")->fetchColumn();
+  $coverageProd  = $totalProducts ? round($aiProducts / $totalProducts * 100) : 0;
+  $coverageBlog  = $totalBlogs    ? round($aiBlogs    / $totalBlogs    * 100) : 0;
+  $recent        = seo_recent_runs(8);
+  $cronCmd       = '0 4 * * *  /usr/bin/php ' . realpath(__DIR__) . '/cron/seo-daily.php >/var/log/seo-daily.log 2>&1';
+  $webCronUrl    = rtrim(site_url(), '/') . '/cron/seo-daily.php?token=' . urlencode($cronTok);
+?>
+  <h5 class="fw-bold mb-1"><i class="bi bi-stars me-2 text-warning"></i>AI SEO Centre <small class="text-muted fs-6">— SEO · GEO · AEO automation</small></h5>
+  <p class="text-muted small mb-4">Powered by Claude Sonnet 4.6 (via the Emergent Universal Key). Generates SEO-friendly meta + voice-search-friendly Q&amp;A, refreshes the sitemap + <code>llms-full.txt</code>, and pings IndexNow (Bing/Yandex/Seznam).</p>
+
+  <!-- Coverage cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3"><div class="card-e p-3"><small class="text-muted text-uppercase fw-bold" style="letter-spacing:.14em;font-size:10px;">Product coverage</small><div class="fw-bold fs-3 mt-1"><?= $coverageProd ?>%</div><div class="small text-muted"><?= $aiProducts ?> / <?= $totalProducts ?> products AI-optimised</div></div></div>
+    <div class="col-md-3"><div class="card-e p-3"><small class="text-muted text-uppercase fw-bold" style="letter-spacing:.14em;font-size:10px;">Blog coverage</small><div class="fw-bold fs-3 mt-1"><?= $coverageBlog ?>%</div><div class="small text-muted"><?= $aiBlogs ?> / <?= $totalBlogs ?> posts AI-optimised</div></div></div>
+    <div class="col-md-3"><div class="card-e p-3"><small class="text-muted text-uppercase fw-bold" style="letter-spacing:.14em;font-size:10px;">Last run</small><div class="fw-bold fs-3 mt-1"><?= !empty($recent[0]) ? esc(date('M j H:i', strtotime((string)$recent[0]['ran_at']) ?: time())) : '—' ?></div><div class="small text-muted"><?= !empty($recent[0]) ? (int)$recent[0]['items_refreshed'] . ' items refreshed' : 'never run' ?></div></div></div>
+    <div class="col-md-3"><div class="card-e p-3"><small class="text-muted text-uppercase fw-bold" style="letter-spacing:.14em;font-size:10px;">Indexers wired</small><div class="fw-bold fs-3 mt-1">3+</div><div class="small text-muted">IndexNow · Bing · Yandex · Seznam</div></div></div>
+  </div>
+
+  <!-- Run-now card -->
+  <div class="card-e p-4 mb-4">
+    <h6 class="fw-bold mb-2"><i class="bi bi-magic me-1 text-primary"></i>Run AI SEO pipeline now</h6>
+    <p class="small text-muted mb-3">Picks the next batch of products/blog posts whose content has drifted since the last run, AI-generates fresh meta + AEO Q&amp;A, regenerates the sitemap + <code>llms-full.txt</code>, then pings IndexNow.</p>
+    <form method="post" class="d-flex gap-2 align-items-end flex-wrap">
+      <input type="hidden" name="action" value="seo_run_now">
+      <div>
+        <label class="form-label small fw-semibold text-uppercase text-muted" style="letter-spacing:.12em;font-size:10px;">Batch size</label>
+        <input type="number" name="max" value="6" min="1" max="20" class="form-control" style="width:120px;" data-testid="seo-batch-size">
+      </div>
+      <button class="btn btn-primary rounded-pill px-4" type="submit" data-testid="seo-run-now"><i class="bi bi-lightning-charge-fill me-1"></i>Run now</button>
+      <small class="text-muted ms-2">Takes ~5-30 s depending on batch size.</small>
+    </form>
+
+    <?php if ($runResult): ?>
+      <?php if (!empty($runResult['error'])): ?>
+        <div class="alert alert-danger mt-3" data-testid="seo-run-result-error"><i class="bi bi-x-octagon me-2"></i>Run failed: <?= esc($runResult['error']) ?></div>
+      <?php else: ?>
+        <div class="alert alert-success mt-3 mb-0" data-testid="seo-run-result-ok">
+          <strong><i class="bi bi-check-circle-fill me-2"></i>Run completed</strong>
+          <div class="row g-2 mt-2 small">
+            <div class="col-md-3"><strong><?= (int)$runResult['items_refreshed'] ?></strong> items refreshed</div>
+            <div class="col-md-3"><strong><?= (int)$runResult['urls_indexnow'] ?></strong> URLs to IndexNow</div>
+            <div class="col-md-3"><strong><?= (int)$runResult['sitemap_urls'] ?></strong> sitemap URLs</div>
+            <div class="col-md-3"><strong><?= (int)$runResult['llms_full_lines'] ?></strong> llms-full.txt lines</div>
+          </div>
+          <details class="mt-2 small">
+            <summary class="text-muted">Endpoint responses</summary>
+            <pre class="mt-2 mb-0 small" style="white-space:pre-wrap;background:rgba(0,0,0,.04);padding:8px;border-radius:6px;"><?= esc(json_encode($runResult['indexnow_results'] ?? [], JSON_PRETTY_PRINT) . "\n" . json_encode($runResult['sitemap_pings'] ?? [], JSON_PRETTY_PRINT)) ?></pre>
+          </details>
+        </div>
+      <?php endif; ?>
+    <?php endif; ?>
+  </div>
+
+  <!-- Auto-schedule card -->
+  <div class="card-e p-4 mb-4">
+    <h6 class="fw-bold mb-2"><i class="bi bi-clock-history me-1 text-success"></i>Run automatically every day</h6>
+    <p class="small text-muted mb-3">Pick whichever option fits your hosting setup. Both run the exact same pipeline; just one is server-side cron, the other is HTTP-poll.</p>
+
+    <div class="mb-3">
+      <strong class="small">Option A — Server cron (recommended)</strong>
+      <p class="small text-muted mb-1">Add this line to <code>crontab -e</code> on the server (runs 04:00 daily):</p>
+      <pre style="background:#0f172a;color:#e2e8f0;padding:10px;border-radius:6px;font-size:12px;overflow:auto;"><?= esc($cronCmd) ?></pre>
+    </div>
+
+    <div>
+      <strong class="small">Option B — External HTTP cron (Cron-Job.org / EasyCron / Uptime Robot)</strong>
+      <p class="small text-muted mb-1">Point any external scheduler at this URL (the token authorises the call):</p>
+      <input class="form-control" readonly value="<?= esc($webCronUrl) ?>" style="font-family:ui-monospace,monospace;font-size:12px;" data-testid="seo-cron-url" onclick="this.select()">
+    </div>
+  </div>
+
+  <!-- Recent runs -->
+  <div class="card-e p-4">
+    <h6 class="fw-bold mb-3"><i class="bi bi-list-check me-1 text-info"></i>Recent runs</h6>
+    <?php if (!$recent): ?>
+      <p class="small text-muted mb-0">No runs yet — hit <strong>Run now</strong> above to populate.</p>
+    <?php else: ?>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle small mb-0">
+          <thead><tr><th>When</th><th>Items refreshed</th><th>URLs → IndexNow</th><th>Sitemap URLs</th><th style="width:30%;">Notes</th></tr></thead>
+          <tbody>
+            <?php foreach ($recent as $r): ?>
+              <tr>
+                <td><?= esc($r['ran_at']) ?></td>
+                <td><span class="badge text-bg-primary-subtle"><?= (int)$r['items_refreshed'] ?></span></td>
+                <td><span class="badge text-bg-info-subtle"><?= (int)$r['urls_indexnow'] ?></span></td>
+                <td><span class="badge text-bg-secondary-subtle"><?= (int)$r['sitemap_urls'] ?></span></td>
+                <td class="text-muted small" style="max-width:340px;overflow:hidden;text-overflow:ellipsis;"><?= esc(mb_substr((string)$r['notes'], 0, 200)) ?></td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    <?php endif; ?>
+  </div>
+
 <?php endif; ?>
 
 <?php include __DIR__ . '/includes/admin-shell-end.php'; ?>
