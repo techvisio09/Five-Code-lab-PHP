@@ -734,6 +734,28 @@ function seo_ai_publish_blog_for_product(array $product, string $region = 'US'):
     ];
 }
 
+/** Pick a random product from the catalog (any active market) and publish one
+ *  AI-written blog post about it immediately, with IndexNow auto-submit.
+ *  Used by the hero "Run now" button — single-post, single-LLM-call flow.
+ *  Picks a market that hasn't hit its per-day cap, and a product not blogged
+ *  about today to keep the daily-distinct guarantee.
+ */
+function seo_ai_publish_one_random(): array
+{
+    seo_ensure_table();
+    $markets = seo_target_markets();
+    shuffle($markets); // randomise the market order
+    foreach ($markets as $region) {
+        // Skip markets that already filled today's cap
+        $perCap = (int)setting_get('seo_ai_per_market_post_cap', 6);
+        if (seo_ai_blog_today_count_by_market($region) >= $perCap) continue;
+        $product = seo_ai_pick_blog_product_for_market($region);
+        if (!$product) continue;
+        return seo_ai_publish_blog_for_product($product, $region);
+    }
+    return ['ok' => false, 'error' => 'All markets have reached today\'s cap or no eligible product found'];
+}
+
 /** Daily auto-blogger — produces up to N posts/day **per market**.
  *  Default is 6 posts × 4 markets = 24 posts/day.  Configurable via the
  *  `seo_ai_per_market_post_cap` setting (1-10).

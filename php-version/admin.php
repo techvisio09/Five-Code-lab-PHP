@@ -5874,6 +5874,26 @@ elseif ($tab === 'reviews'):
       }
   }
 
+  // Quick publish — pick a random product, publish + index in one shot
+  $quickPublish = null;
+  if (($_POST['action'] ?? '') === 'seo_quick_publish') {
+      try {
+          $quickPublish = seo_ai_publish_one_random();
+      } catch (Throwable $e) {
+          $quickPublish = ['ok' => false, 'error' => $e->getMessage()];
+      }
+  }
+
+  // Publish today's batch (24 posts) — only fires if today's count < cap
+  $batchResult = null;
+  if (($_POST['action'] ?? '') === 'seo_publish_batch') {
+      try {
+          $batchResult = seo_ai_run_daily_blog();
+      } catch (Throwable $e) {
+          $batchResult = ['ok' => false, 'error' => $e->getMessage()];
+      }
+  }
+
   // Go-Live Checklist: submit sitemap to all search engines + IndexNow on demand
   $submitResult = null;
   if (($_POST['action'] ?? '') === 'seo_submit_now') {
@@ -6186,17 +6206,57 @@ elseif ($tab === 'reviews'):
         <div class="ai-hero-bot"><i class="bi bi-robot"></i></div>
         <div>
           <h5>AI Auto-Blogger</h5>
-          <div class="ai-hero-sub">daily article + indexing across <strong>US · UK · AU · CA</strong></div>
+          <div class="ai-hero-sub">daily article + indexing across <strong>US · UK · AU · CA</strong> · today <strong><?= (int)$todayCount ?>/<?= (int)$perMarketCap * 4 ?></strong></div>
         </div>
       </div>
-      <form method="post" class="m-0">
-        <input type="hidden" name="action" value="seo_run_now">
-        <input type="hidden" name="max" value="6">
-        <button class="ai-hero-runnow" type="submit" style="background:none;border:none;padding:0;" data-testid="seo-run-now">
-          <i class="bi bi-play-fill"></i> Run now
-        </button>
-      </form>
+      <div class="d-flex gap-2 flex-wrap align-items-center">
+        <?php
+          // Disable "Publish today batch" if today is already complete
+          $todayDone = $todayCount >= ($perMarketCap * 4);
+        ?>
+        <form method="post" class="m-0">
+          <input type="hidden" name="action" value="seo_quick_publish">
+          <button class="btn btn-sm rounded-pill px-3 fw-semibold" type="submit" style="background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none;box-shadow:0 4px 12px rgba(124,58,237,.35);" data-testid="seo-quick-publish" title="Pick a random product, write a blog & index in one shot">
+            <i class="bi bi-magic me-1"></i>Run now
+          </button>
+        </form>
+        <form method="post" class="m-0">
+          <input type="hidden" name="action" value="seo_publish_batch">
+          <button class="btn btn-sm rounded-pill px-3 fw-semibold" type="submit"
+                  style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;box-shadow:0 4px 12px rgba(245,158,11,.35);<?= $todayDone ? 'opacity:.55;cursor:not-allowed;' : '' ?>"
+                  data-testid="seo-publish-batch-today"
+                  <?= $todayDone ? 'disabled title="Today\'s batch already complete"' : 'title="Publish all 24 (6×4) posts for today right now"' ?>>
+            <i class="bi bi-broadcast me-1"></i>Publish today batch now
+            <?php if ($todayDone): ?><i class="bi bi-check2 ms-1"></i><?php endif; ?>
+          </button>
+        </form>
+      </div>
     </div>
+    <?php if ($quickPublish): ?>
+      <div class="mt-3 p-2 rounded small" data-testid="seo-quick-publish-result" style="background:<?= !empty($quickPublish['ok']) ? 'rgba(124,58,237,.10)' : 'rgba(239,68,68,.10)' ?>;border:1px solid <?= !empty($quickPublish['ok']) ? 'rgba(124,58,237,.30)' : 'rgba(239,68,68,.30)' ?>;">
+        <?php if (!empty($quickPublish['ok'])): ?>
+          <i class="bi bi-check-circle-fill me-1" style="color:#7c3aed;"></i>
+          <strong>Published:</strong> "<?= esc($quickPublish['title']) ?>" · <?= esc($quickPublish['region']) ?> · <?= (int)$quickPublish['word_count'] ?> words · <?= (int)$quickPublish['internal_links'] ?> backlinks ·
+          <a href="<?= esc($quickPublish['url']) ?>" target="_blank">view post →</a>
+        <?php else: ?>
+          <i class="bi bi-x-octagon me-1" style="color:#dc2626;"></i>
+          <strong>Failed:</strong> <?= esc($quickPublish['error']) ?>
+        <?php endif; ?>
+      </div>
+    <?php endif; ?>
+    <?php if ($batchResult): ?>
+      <div class="mt-3 p-2 rounded small" data-testid="seo-batch-result" style="background:<?= !empty($batchResult['ok']) ? 'rgba(245,158,11,.12)' : 'rgba(239,68,68,.10)' ?>;border:1px solid <?= !empty($batchResult['ok']) ? 'rgba(245,158,11,.32)' : 'rgba(239,68,68,.30)' ?>;">
+        <?php if (!empty($batchResult['skipped'])): ?>
+          <i class="bi bi-info-circle me-1" style="color:#f59e0b;"></i>
+          <strong>Batch skipped:</strong> <?= esc($batchResult['skipped']) ?> — today's posts are already published.
+        <?php elseif (!empty($batchResult['ok'])): ?>
+          <i class="bi bi-broadcast-pin me-1" style="color:#f59e0b;"></i>
+          <strong>Batch published:</strong> <?= (int)$batchResult['published'] ?> posts across 4 markets (per-market cap <?= (int)($batchResult['per_market_cap'] ?? $perMarketCap) ?>) · auto-indexed.
+        <?php elseif (!empty($batchResult['error'])): ?>
+          <i class="bi bi-x-octagon me-1" style="color:#dc2626;"></i><strong>Failed:</strong> <?= esc($batchResult['error']) ?>
+        <?php endif; ?>
+      </div>
+    <?php endif; ?>
   </div>
 
   <!-- ============ Stats panel ============ -->

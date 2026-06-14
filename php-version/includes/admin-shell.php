@@ -552,6 +552,13 @@ body[data-brand-motion="static"] .adm-top .brand-center .m-logo-img {
 .adm-sidebar::-webkit-scrollbar { width: 6px; }
 .adm-sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 .adm-sidebar::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+/* Fade hint at the bottom so admins know they can scroll for more nav items */
+.adm-sidebar::after {
+  content:''; position: sticky; bottom:-1px; display:block;
+  height: 32px; margin-top: -32px;
+  background: linear-gradient(to top, var(--card-bg) 0%, transparent 100%);
+  pointer-events: none;
+}
 .adm-sidebar .side-section {
   padding:8px 18px 6px;
   font-size:10px;letter-spacing:1.5px;color: var(--muted);
@@ -1284,6 +1291,19 @@ if ($adminActive !== 'seo') {
 <?php endif; ?>
 
 <script>
+// On every load, scroll the sidebar so the active nav item is visible
+(function() {
+  var aside = document.querySelector('.adm-sidebar');
+  var active = aside && aside.querySelector('.item.active');
+  if (aside && active) {
+    var aRect = aside.getBoundingClientRect();
+    var iRect = active.getBoundingClientRect();
+    if (iRect.bottom > aRect.bottom - 20 || iRect.top < aRect.top + 20) {
+      active.scrollIntoView({ block: 'center', behavior: 'instant' });
+    }
+  }
+})();
+
 document.addEventListener('click', function(e){
   document.querySelectorAll('.adm-dropdown.open').forEach(function(d){
     if (!d.contains(e.target)) d.classList.remove('open');

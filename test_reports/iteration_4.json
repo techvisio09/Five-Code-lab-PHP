@@ -1,0 +1,75 @@
+{
+  "summary": "Iteration 4 verifies (a) the new hero with purple 'Run now' (data-testid=seo-quick-publish) and orange 'Publish today batch now' (data-testid=seo-publish-batch-today) buttons including correct hidden form actions (seo_quick_publish / seo_publish_batch), (b) the new seo_ai_publish_one_random() function in seo_ai.php and its reference from admin.php, (c) the hero subtitle in the exact 'today X/Y' format (today 0/24 = today 0 / per_market_cap*4 = 24), (d) the sidebar auto-scroll JS snippet in admin-shell.php that brings the active AI Auto-Blogger item into view on small viewports, (e) the per-product Articles section that renders only when seo_ai_blog_log has rows for the product slug (verified gracefully absent with empty table, and confirmed rendering with data-testid=product-articles-section after inserting one test row, then cleaned up), and (f) all 12 admin tabs return HTTP 200 with zero PHP errors and adm-nav-seo always present. Playwright run on a 1280x600 viewport confirmed the sidebar 'AI Auto-Blogger' bounding rect (y=525, h=42) is inside the 600px viewport on first load AND remains in-viewport after submitting the Go-Live Checklist form. 27/27 backend tests passed; frontend assertions all passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "homepage_http_200_no_php_errors": true,
+    "homepage_jsonld_localbusiness_and_brand_present": true,
+    "public_product_page_http_200": true,
+    "product_articles_section_absent_when_empty_table": true,
+    "product_articles_section_renders_when_row_inserted": "verified via curl after INSERT into seo_ai_blog_log; data-testid=product-articles-section + data-testid=product-article-12 anchor href=blog-post.php?id=12 present; test row deleted",
+    "blog_post_12_http_200": true,
+    "admin_login_303_to_admin_dashboard": true,
+    "all_12_admin_tabs_http_200_no_php_errors": {
+      "dashboard": 200, "products": 200, "orders": 200, "company": 200,
+      "regions": 200, "leads": 200, "emails": 200, "reviews": 200,
+      "templates": 200, "gateways": 200, "smtp": 200, "seo": 200
+    },
+    "adm_nav_seo_present_on_every_admin_tab": true,
+    "seo_hero_quick_publish_button_present": true,
+    "seo_hero_publish_batch_button_present": true,
+    "seo_quick_publish_form_action": "seo_quick_publish (hidden input verified in HTML adjacent to seo-quick-publish testid)",
+    "seo_publish_batch_form_action": "seo_publish_batch (hidden input verified in HTML adjacent to seo-publish-batch-today testid)",
+    "seo_hero_today_counter": "today 0/24 (per_market_cap=6 × 4 markets = 24)",
+    "seo_hero_market_list_text": "daily article + indexing across US · UK · AU · CA",
+    "admin_shell_scrollintoview_js_present": "verified at /app/php-version/includes/admin-shell.php :1294-1305 — scans .adm-sidebar .item.active, calls scrollIntoView({block:'center', behavior:'instant'}) when iRect goes outside aRect",
+    "playwright_sidebar_in_viewport_600h": {
+      "viewport": "1280x600",
+      "adm_nav_seo_bbox_before_submit": {"x": 23, "y": 525, "width": 228, "height": 42},
+      "in_viewport_before_submit": true,
+      "adm_nav_seo_bbox_after_go_live_submit": {"x": 23, "y": 525, "width": 228, "height": 42},
+      "in_viewport_after_submit": true,
+      "still_present_after_submit": true
+    },
+    "seo_ai_publish_one_random_function_exists": "yes — /app/php-version/includes/seo_ai.php :743",
+    "seo_quick_publish_handler_calls_one_random": "yes — admin.php :5879-5887 invokes seo_ai_publish_one_random() and assigns result to $quickPublish",
+    "seo_publish_batch_handler_calls_run_daily_blog": "yes — admin.php :5889-5897 invokes seo_ai_run_daily_blog() and assigns result to $batchResult",
+    "php_lint_all_5_files_clean": {
+      "admin.php": "no errors",
+      "includes/seo_ai.php": "no errors",
+      "includes/admin-shell.php": "no errors",
+      "product.php": "no errors",
+      "cron/seo-daily.php": "no errors"
+    },
+    "did_not_click_run_now_or_publish_batch": "per instruction — LLM budget exceeded; only verified form action attributes via HTML inspection"
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_4.py",
+    "/app/test_reports/pytest/iteration_4_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "seo_ai_publish_one_random() iterates markets in random order and returns the first successful publish, but if NO market has an eligible product (catalog smaller than today's per-market posts) it returns a generic error string. Consider returning a richer error object that distinguishes 'all caps reached' from 'no eligible product' for clearer admin UX in the seo-quick-publish-result banner.",
+    "Per-product Articles section query orders by id DESC and limits to 12 — fine for current scale, but add an index on seo_ai_blog_log.product_slug (currently no key on that column per SHOW COLUMNS) before the table grows; today there are 0 rows so the table scan is irrelevant.",
+    "The Publish-today-batch button correctly disables itself when todayCount >= globalCap, but it still POSTs if the user removes the disabled attribute via devtools — server-side seo_ai_run_daily_blog() already guards with the existing 'skipped: daily cap reached' branch, so this is acceptable defence-in-depth.",
+    "Sidebar auto-scroll JS uses behavior:'instant' which is fine on modern browsers; older Safari interprets it as the default 'auto' which may animate — acceptable but worth noting in comments.",
+    "Hero subtitle renders 'today <strong>0/24</strong>' (both numbers in ONE <strong>) — fine for display but the iteration brief description shows them as separate strong tags; cosmetic and not a regression."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_4.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "services@fivecodelabsoftware.com / Fivecode@2026! — confirmed working (POST /login.php → 303 → admin.php?tab=dashboard)",
+  "seed_data_creation": "Temporarily inserted ONE row into seo_ai_blog_log (product_slug=microsoft-office-2024-professional-plus-windows, region=US, title='TEST_How to install MS Office 2024 in the US') to verify the per-product Articles section renders with data-testid=product-articles-section and a clickable data-testid=product-article-12 card. Row was deleted after verification (DELETE WHERE title LIKE 'TEST_%') — table is back to 0 rows.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "When LLM budget is topped up: (1) click [data-testid=seo-quick-publish] and verify seo-quick-publish-result banner shows ok with title + region + word_count + internal_links + view post link; (2) click [data-testid=seo-publish-batch-today] and verify it publishes up to 24 posts then disables itself with check icon; (3) re-curl /product.php?slug=<any-published-slug> to verify the Articles section now renders without manual DB seeding. Sidebar/hero/form-action infrastructure for iteration 4 is fully verified.",
+  "rca of the issue": "No issues found. All 13 review-request bullet points pass: login works; /admin.php?tab=seo HTTP 200 with zero PHP errors; adm-nav-seo is visible AND inside the 600px viewport before AND after a Go-Live Submit (sidebar auto-scroll JS in admin-shell.php works); hero renders 'AI Auto-Blogger · daily article + indexing across US · UK · AU · CA · today 0/24'; both purple seo-quick-publish and orange seo-publish-batch-today buttons present with the correct hidden form actions (seo_quick_publish → seo_ai_publish_one_random(), seo_publish_batch → seo_ai_run_daily_blog()); public product page renders without errors and the Articles section is gracefully absent with an empty table (confirmed it renders correctly when one test row is inserted, then cleaned up); all 12 admin tabs 200 OK; homepage LocalBusiness + Brand JSON-LD intact; /blog-post.php?id=12 still renders; seo_ai_publish_one_random() function present at seo_ai.php :743 and referenced by the seo_quick_publish action handler in admin.php :5879."
+}

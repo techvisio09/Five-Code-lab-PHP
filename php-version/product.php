@@ -443,6 +443,55 @@ include __DIR__ . '/includes/header.php';
     </div>
   </section>
 
+  <!-- ============ Articles about this product (AI-published) ============ -->
+  <?php
+  $productArticles = [];
+  try {
+      $stmt = db()->prepare(
+          "SELECT b.blog_id, b.title, b.region, b.word_count, b.created_at
+           FROM seo_ai_blog_log b
+           WHERE b.product_slug = ?
+           ORDER BY b.id DESC LIMIT 12"
+      );
+      $stmt->execute([$product['slug']]);
+      $productArticles = $stmt->fetchAll();
+  } catch (Throwable $e) { /* table may not exist on a fresh install */ }
+  ?>
+  <?php if ($productArticles): ?>
+    <section class="mt-5" aria-labelledby="product-articles-heading" data-testid="product-articles-section">
+      <h2 id="product-articles-heading" class="fw-bold h4 mb-1"><i class="bi bi-journals me-2 text-primary"></i>Articles about <?= esc(mb_substr($product['name'], 0, 60)) ?></h2>
+      <p class="text-muted small mb-3">Editorial guides our team has published — one for each market we serve. Updated automatically as new guides go live.</p>
+      <div class="row g-3">
+        <?php foreach ($productArticles as $a):
+          $regionColor = [
+            'US' => ['bg' => '#ddd6fe', 'text' => '#5b21b6'],
+            'UK' => ['bg' => '#dbeafe', 'text' => '#1e40af'],
+            'AU' => ['bg' => '#fef3c7', 'text' => '#92400e'],
+            'CA' => ['bg' => '#fee2e2', 'text' => '#991b1b'],
+          ][$a['region']] ?? ['bg' => '#e5e7eb', 'text' => '#374151'];
+          $readEst = max(3, (int)round((int)$a['word_count'] / 220));
+        ?>
+          <div class="col-md-6 col-lg-4">
+            <a href="blog-post.php?id=<?= esc($a['blog_id']) ?>" class="card h-100 text-decoration-none product-article-card" data-testid="product-article-<?= esc($a['blog_id']) ?>">
+              <div class="card-body p-3">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                  <span class="badge" style="background:<?= $regionColor['bg'] ?>;color:<?= $regionColor['text'] ?>;font-size:10px;font-weight:700;letter-spacing:.1em;"><?= esc($a['region']) ?></span>
+                  <small class="text-muted"><?= esc(date('M j, Y', strtotime((string)$a['created_at']) ?: time())) ?></small>
+                  <small class="text-muted ms-auto"><?= (int)$readEst ?> min read</small>
+                </div>
+                <div class="fw-semibold" style="color:#1e3a8a;line-height:1.35;font-size:14px;"><?= esc($a['title']) ?></div>
+              </div>
+            </a>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    </section>
+    <style>
+      .product-article-card { transition: transform .15s ease, box-shadow .2s ease; border:1px solid #e5e7eb; }
+      .product-article-card:hover { transform: translateY(-3px); box-shadow:0 8px 22px rgba(15,23,42,.10); border-color:#3b82f6; }
+    </style>
+  <?php endif; ?>
+
   <?php if ($related): ?>
     <h2 class="fw-bold h4 mt-5 mb-4">Related Products</h2>
     <div class="row g-4">
