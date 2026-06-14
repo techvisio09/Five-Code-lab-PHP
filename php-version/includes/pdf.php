@@ -101,7 +101,7 @@ function _pdf_make_qr(string $payload): string
  *     entry (order number + email pre-filled).  Anyone holding a printed
  *     copy can scan to pull a fresh digital PDF on the spot.
  */
-function _pdf_apply_brand_layers(Dompdf $dompdf, string $productImageUrl = '', string $qrPayload = ''): void
+function _pdf_apply_brand_layers(Dompdf $dompdf, string $productImageUrl = '', string $qrPayload = '', string $orderStatus = '', string $scatterSeed = ''): void
 {
     $canvas = $dompdf->getCanvas();
     if (!$canvas) return;
@@ -109,63 +109,74 @@ function _pdf_apply_brand_layers(Dompdf $dompdf, string $productImageUrl = '', s
     $pageW = $canvas->get_width();
     $pageH = $canvas->get_height();
 
-    // 1) Centre watermark — the purchased product, low opacity, dimmed
-    $wmPath = '';
-    if ($productImageUrl !== '') {
-        $wmPath = _pdf_cache_image($productImageUrl);
-    }
-
-    // 2) Tiny Office app icon ornament strip (top-right corner, under the brand block)
-    $apps = [
-        __DIR__ . '/../assets/images/cache/word.png',
-        __DIR__ . '/../assets/images/cache/excel.jpg',
-        __DIR__ . '/../assets/images/cache/powerpoint.png',
-        __DIR__ . '/../assets/images/cache/outlook.png',
-        __DIR__ . '/../assets/images/cache/access.png',
-    ];
-    $apps = array_values(array_filter($apps, 'is_file'));
-
-    // Build the page_script that fires once per page
     $scriptLines = [];
 
-    if ($wmPath) {
-        $wmSize = 260.0; // hero centred mark — sized so it doesn't crowd BILL TO or totals
-        $wmX = ($pageW - $wmSize) / 2.0;
-        $wmY = ($pageH - $wmSize) / 2.0 + 80; // shifted noticeably below page centre, sits in the empty band under the items table
-        // We bake opacity into the source PNG (set_opacity isn't reliable for images on CPDF),
-        // so re-encode the product image to a soft alpha version once, on demand.
-        $softPath = _pdf_make_soft_image($wmPath, 0.09);
-        if ($softPath) {
-            $sw = var_export($softPath, true);
-            $scriptLines[] = "\$pdf->image($sw, $wmX, $wmY, $wmSize, $wmSize);";
-        }
+    // 1) Scattered Microsoft Office app icons — soft watermarks dotted across
+    //    the entire page (NOT a bottom strip). Deterministic positions seeded
+    //    by the order number so the same order always lays out identically
+    //    (great for printed copies looking identical to digital).
+    $appDir = __DIR__ . '/../assets/images/cache/soft-apps';
+    $apps = [];
+    foreach (['word.png','excel.png','powerpoint.png','outlook.png','access.png'] as $fn) {
+        $p = realpath($appDir . '/' . $fn);
+        if ($p) $apps[] = $p;
     }
-
     if (!empty($apps)) {
-        // 26-pt icons spaced 8-pt apart along the bottom-centre ornament strip.
-        // The icons themselves communicate "Compatible with Microsoft Office apps"
-        // — no text label is needed (and Dompdf's text() API requires a resolved
-        // font object that isn't trivially available inside page_script).
-        $iconSize = 26.0;
-        $gap      = 8.0;
-        $stripW   = (count($apps) * ($iconSize + $gap)) - $gap;
-        $stripX   = ($pageW - $stripW) / 2.0;   // centered horizontally
-        $stripY   = $pageH - 60;                // bottom margin = 60pt
-        foreach ($apps as $i => $ap) {
-            $x = $stripX + $i * ($iconSize + $gap);
-            $ap = realpath($ap) ?: $ap;
-            $scriptLines[] = "\$pdf->image(" . var_export($ap, true) . ", $x, $stripY, $iconSize, $iconSize);";
+        $seed = crc32(($scatterSeed !== '' ? $scatterSeed : 'fivecodelab') . '|' . count($apps));
+        mt_srand($seed);
+        // 14 icons spread across the page in a jittered grid (avoids overlap)
+        $cols = 4; $rows = 5;
+        $cellW = ($pageW - 80) / $cols;
+        $cellH = ($pageH - 140) / $rows;   // leave room top + bottom
+        $count = 0;
+        for ($r = 0; $r < $rows; $r++) {
+            for ($c = 0; $c < $cols; $c++) {
+                if (++$count > 14) break 2;
+                // Skip the centre two cells so the totals / amount banner stays clean
+                if ($r >= 1 && $r <= 3 && ($c === 1 || $c === 2)) continue;
+                $ap   = $apps[mt_rand(0, count($apps) - 1)];
+                $size = mt_rand(28, 44);
+                $jx   = mt_rand(-22, 22);
+                $jy   = mt_rand(-18, 18);
+                $rot  = mt_rand(-18, 18);
+                $x    = 40 + $c * $cellW + ($cellW - $size) / 2.0 + $jx;
+                $y    = 80 + $r * $cellH + ($cellH - $size) / 2.0 + $jy;
+                $cx   = $x + $size / 2.0;
+                $cy   = $y + $size / 2.0;
+                $img  = var_export($ap, true);
+                $scriptLines[] = "\$pdf->save(); \$pdf->rotate($rot, $cx, $cy); \$pdf->image($img, $x, $y, $size, $size); \$pdf->restore();";
+            }
         }
     }
 
-    // 3) Bottom-right QR — deep links to the customer's Order History entry.
+    // 2) PAID / DUE rubber stamp — large, semi-transparent, rotated.
+    //    Light-coloured (32% alpha baked into the source PNG so totals
+    //    sitting on top stay perfectly readable).
+    $statusKey = strtolower(trim($orderStatus));
+    $stampFile = null;
+    if (in_array($statusKey, ['paid','fulfilled','completed','complete'], true)) {
+        $stampFile = realpath(__DIR__ . '/../assets/images/brand/stamp-paid-soft.png');
+    } elseif (in_array($statusKey, ['pending','unpaid','awaiting','due','overdue'], true)) {
+        $stampFile = realpath(__DIR__ . '/../assets/images/brand/stamp-due-soft.png');
+    }
+    if ($stampFile) {
+        $stampW = 320.0;  // generous — clear "PAID/DUE" call-out
+        $stampH = 160.0;
+        $stampX = ($pageW - $stampW) / 2.0;
+        $stampY = $pageH * 0.34;   // upper-middle of the page
+        $img = var_export($stampFile, true);
+        $scriptLines[] = "\$pdf->image($img, $stampX, $stampY, $stampW, $stampH);";
+    }
+
+    // 3) Bottom-right QR code — deep links to the customer's Order Lookup.
     if ($qrPayload !== '') {
         $qrPath = _pdf_make_qr($qrPayload);
         if ($qrPath) {
             $qrSize = 64.0;
-            $qrX    = $pageW - 48 - $qrSize;     // 48pt right margin
-            $qrY    = $pageH - 64 - $qrSize - 4; // sits above the app-icon strip
-            $scriptLines[] = "\$pdf->image(" . var_export($qrPath, true) . ", $qrX, $qrY, $qrSize, $qrSize);";
+            $qrX    = $pageW - 48 - $qrSize;
+            $qrY    = $pageH - 48 - $qrSize;
+            $img = var_export($qrPath, true);
+            $scriptLines[] = "\$pdf->image($img, $qrX, $qrY, $qrSize, $qrSize);";
         }
     }
 
@@ -378,9 +389,6 @@ function _pdf_shell(array $ctx, string $bodyHtml): string
 
   {$bodyHtml}
 
-  <div class="ms-ornament-label">
-    <span class="accent">★</span> &nbsp; Compatible with Microsoft Office 365, 2024, 2021, 2019 &nbsp; <span class="accent">★</span>
-  </div>
   <div class="footer">
     Questions? Reply to this email or visit our support page. <strong>Thanks for choosing {$brand}.</strong>
     <span class="legal">Microsoft®, Office® and Windows® are trademarks of Microsoft Corporation. {$brand} is independent of and not affiliated with Microsoft Corporation.</span>
@@ -484,7 +492,7 @@ function generate_receipt_pdf(array $order, array $items, ?array $payment = null
     $qrPayload = function_exists('site_url')
         ? (rtrim(site_url(), '/') . '/order-lookup.php?o=' . urlencode((string)$order['order_number']) . '&e=' . urlencode((string)($order['email'] ?? '')))
         : '';
-    _pdf_apply_brand_layers($dompdf, $heroProductImg, $qrPayload);
+    _pdf_apply_brand_layers($dompdf, $heroProductImg, $qrPayload, (string)($order['status'] ?? ''), (string)$order['order_number']);
     $dompdf->render();
     return $dompdf->output();
 }
@@ -570,7 +578,7 @@ function generate_invoice_pdf(array $order, array $items): string
     $qrPayload = function_exists('site_url')
         ? (rtrim(site_url(), '/') . '/order-lookup.php?o=' . urlencode((string)$order['order_number']) . '&e=' . urlencode((string)($order['email'] ?? '')))
         : '';
-    _pdf_apply_brand_layers($dompdf, $heroProductImg, $qrPayload);
+    _pdf_apply_brand_layers($dompdf, $heroProductImg, $qrPayload, (string)($order['status'] ?? ''), (string)$order['order_number']);
     $dompdf->render();
     return $dompdf->output();
 }
