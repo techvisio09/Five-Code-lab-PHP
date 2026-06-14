@@ -442,8 +442,8 @@ function product_faqs(array $product): array {
     $installStepsPlain = strip_tags(str_replace('<br>', "\n", installation_steps_for($product)));
     $installStepsPlain = preg_replace('/\s+/', ' ', trim($installStepsPlain));
 
-    $co = function_exists('company_info') ? company_info() : ['name' => 'Maventech Software', 'phone' => '', 'email' => ''];
-    $brandStore = $co['name'] ?? 'Maventech Software';
+    $co = function_exists('company_info') ? company_info() : ['name' => 'Fivecodelab Software', 'phone' => '', 'email' => ''];
+    $brandStore = $co['name'] ?? 'Fivecodelab Software';
     $supportHrs = defined('SITE_HOURS') ? SITE_HOURS : 'Mon-Sat, 9 AM - 6 PM EST';
 
     return [
@@ -1007,7 +1007,7 @@ function fulfill_order(int $orderId, bool $forceAdminOverride = false): void {
  */
 function send_customer_service_ack(string $to, string $name, string $subjectLine, string $userMessage, string $source = 'contact'): void {
     $co = company_info();
-    $brand   = $co['name']  ?: (defined('SITE_BRAND') ? SITE_BRAND : 'Maventech Software');
+    $brand   = $co['name']  ?: (defined('SITE_BRAND') ? SITE_BRAND : 'Fivecodelab Software');
     $support = $co['email'] ?: (defined('SITE_EMAIL') ? SITE_EMAIL : '');
     $phone   = $co['phone'] ?: (defined('SITE_PHONE') ? SITE_PHONE : '');
     $hours   = defined('SITE_HOURS') ? SITE_HOURS : 'Mon-Sat, 9 AM - 6 PM EST';

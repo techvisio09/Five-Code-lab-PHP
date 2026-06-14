@@ -80,7 +80,7 @@ try {
 if ($reviewBlock === '') $reviewBlock = "(no recent reviews to show)";
 
 $co = company_info();
-$brandStore = $co['name'] ?? 'Maventech Software';
+$brandStore = $co['name'] ?? 'Fivecodelab Software';
 $supportHrs = defined('SITE_HOURS') ? SITE_HOURS : 'Mon-Sat, 9 AM - 6 PM EST';
 
 $descBlurb = trim(strip_tags((string)($product['description'] ?? $product['summary'] ?? '')));

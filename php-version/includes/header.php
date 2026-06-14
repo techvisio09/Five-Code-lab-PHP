@@ -5,7 +5,7 @@ require_once __DIR__ . '/visitor_track.php';
 // Track this public page-view (silently skipped for bots / admin / CLI).
 track_visitor();
 $co = company_info();                                       // single source of truth
-$brandName  = $co['name']  ?: (defined('SITE_BRAND') ? SITE_BRAND : 'Maventech Software');
+$brandName  = $co['name']  ?: (defined('SITE_BRAND') ? SITE_BRAND : 'Fivecodelab Software');
 $brandEmail = $co['email'] ?: (defined('SITE_EMAIL') ? SITE_EMAIL : '');
 $brandPhone = $co['phone'] ?: (defined('SITE_PHONE') ? SITE_PHONE : '');
 $brandLogo  = $co['logo']  ?: '';
@@ -179,7 +179,7 @@ $ogImage = $ogImage ?? site_url() . '/assets/images/badges/microsoft-verified.sv
 
 <!-- Promo bar -->
 <div class="topbar text-center py-2 px-3">
-  Save up to 20% on Microsoft Office 2024 — use code <strong>MAVEN20</strong> at checkout — <a href="shop.php" class="text-white fw-bold">Shop Now ›</a>
+  Save up to 20% on Microsoft Office 2024 — use code <strong>FIVE20</strong> at checkout — <a href="shop.php" class="text-white fw-bold">Shop Now ›</a>
 </div>
 
 <!-- Trust bar -->
@@ -194,6 +194,7 @@ $ogImage = $ogImage ?? site_url() . '/assets/images/badges/microsoft-verified.sv
       <span class="badge text-bg-warning text-dark">★ Trusted Software Store</span>
       <span class="badge bg-white text-dark border">2 <small>YRS</small></span>
       <a href="tel:<?= esc($brandPhone) ?>" class="text-decoration-none text-white trustbar-phone"><i class="bi bi-telephone-fill me-1"></i><?= esc($brandPhone) ?></a>
+      <a href="<?= defined('SITE_WEBMAIL') ? esc(SITE_WEBMAIL) : '#' ?>" target="_blank" rel="noopener" class="text-decoration-none text-white trustbar-webmail" data-testid="trustbar-webmail"><i class="bi bi-envelope-fill me-1"></i>Webmail</a>
     </div>
   </div>
 </div>
@@ -319,7 +320,7 @@ $ogImage = $ogImage ?? site_url() . '/assets/images/badges/microsoft-verified.sv
 <div class="deal-bar" id="deal-bar" data-testid="deal-bar">
   <div class="container d-flex align-items-center justify-content-center gap-2 gap-sm-3 flex-wrap py-2 pe-5">
     <span class="deal-bar-flash"><i class="bi bi-lightning-charge-fill"></i></span>
-    <span class="fw-bold small">Limited-Time Deal: 20% off sitewide with code <span class="deal-code">MAVEN20</span></span>
+    <span class="fw-bold small">Limited-Time Deal: 20% off sitewide with code <span class="deal-code">FIVE20</span></span>
     <span class="small">Ends in <strong class="deal-countdown" id="deal-countdown" data-testid="deal-bar-countdown">--:--:--</strong></span>
     <a href="shop.php" class="btn btn-sm btn-light rounded-pill fw-bold px-3 deal-cta" data-testid="deal-bar-cta">Shop Now</a>
     <button type="button" class="btn-close btn-close-white deal-close" aria-label="Dismiss deal bar" data-testid="deal-bar-close"></button>

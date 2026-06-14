@@ -60,7 +60,7 @@ include __DIR__ . '/includes/header.php';
       <div class="col-lg-3 text-center">
         <div class="d-flex align-items-center justify-content-center gap-2 mb-2">
           <?= render_logo(34) ?>
-          <span class="fw-bold small">Maventech Software</span>
+          <span class="fw-bold small">Fivecodelab Software</span>
         </div>
         <div class="display-3 fw-bold text-primary lh-1" data-testid="reviews-overall">4.6</div>
         <div class="text-warning fs-5">★★★★★</div>

@@ -15,7 +15,7 @@ function verification_email_html(string $code): string
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
     <table role="presentation" width="480" style="max-width:480px;background:#fff;border-radius:14px;padding:8px;">
       <tr><td style="padding:28px 32px;">
-        <div style="font-size:17px;font-weight:800;color:#0f172a;">Maventech <span style="color:#0891b2;">Software</span></div>
+        <div style="font-size:17px;font-weight:800;color:#0f172a;">Fivecodelab <span style="color:#0070BA;">Software</span></div>
         <h1 style="font-size:19px;color:#0f172a;margin:18px 0 8px;">Your verification code</h1>
         <p style="font-size:13px;color:#475569;margin:0 0 16px;">Use this code to access your orders and license keys. It expires in 15 minutes.</p>
         <div style="border:2px dashed #059669;border-radius:10px;background:#ecfdf5;padding:16px;text-align:center;font-family:Courier New,monospace;font-size:26px;font-weight:bold;letter-spacing:6px;color:#047857;">' . esc($code) . '</div>

@@ -49,6 +49,7 @@
 
         <p class="small mb-1"><i class="bi bi-telephone me-2 text-info"></i><a href="tel:<?= esc($brandPhone) ?>"><?= esc($brandPhone) ?></a></p>
         <p class="small mb-1"><i class="bi bi-envelope me-2 text-info"></i><a href="mailto:<?= esc($brandEmail) ?>"><?= esc($brandEmail) ?></a></p>
+        <p class="small mb-1"><i class="bi bi-envelope-paper me-2 text-info"></i><a href="<?= defined('SITE_WEBMAIL') ? esc(SITE_WEBMAIL) : '#' ?>" target="_blank" rel="noopener" data-testid="footer-webmail-link">Webmail Login</a></p>
         <p class="small mb-2"><i class="bi bi-geo-alt me-2 text-info"></i><?= esc($brandAddress) ?></p>
         <a href="https://www.google.com/maps/search/?api=1&query=<?= urlencode($brandAddress) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light rounded-pill mb-2 gmap-btn" data-testid="footer-gmap-btn">
           <span class="gmap-pin"><i class="bi bi-geo-alt-fill"></i></span>View on Google Maps
@@ -89,6 +90,7 @@
           <li><a href="page.php?slug=faqs">FAQs</a></li>
           <li><a href="contact.php">Contact Us</a></li>
           <li><a href="returns.php">Returns &amp; Refunds</a></li>
+          <li><a href="<?= defined('SITE_WEBMAIL') ? esc(SITE_WEBMAIL) : '#' ?>" target="_blank" rel="noopener" data-testid="footer-support-webmail-link"><i class="bi bi-envelope-paper me-1"></i>Webmail</a></li>
         </ul>
       </div>
 
@@ -171,7 +173,7 @@
   <div class="chat-msg-preview-head">
     <span class="chat-msg-preview-avatar"><i class="bi bi-headset"></i></span>
     <div class="chat-msg-preview-meta">
-      <div class="chat-msg-preview-name">Maventech Support</div>
+      <div class="chat-msg-preview-name">Fivecodelab Support</div>
       <div class="chat-msg-preview-sub"><span class="chat-online-dot"></span>just now</div>
     </div>
     <button class="chat-msg-preview-close" type="button" onclick="event.stopPropagation(); hideChatMsgPreview();" aria-label="Dismiss preview" data-testid="chat-msg-preview-close"><i class="bi bi-x"></i></button>

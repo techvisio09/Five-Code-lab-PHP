@@ -1,6 +1,6 @@
 <?php
 /**
- * Maventech SMTP mailer — wraps vendored PHPMailer with:
+ * Fivecodelab SMTP mailer — wraps vendored PHPMailer with:
  *  • settings-driven SMTP config (host/port/user/pass/encryption/from)
  *  • retry-aware queue persistence in `email_outbox`
  *  • plain-text fallback auto-generated from HTML
@@ -119,7 +119,7 @@ function _smtp_make(): PHPMailer {
     $m->Timeout       = 25;
     $m->CharSet       = PHPMailer::CHARSET_UTF8;
     $m->Encoding      = PHPMailer::ENCODING_BASE64;
-    $m->XMailer       = 'Maventech Admin';
+    $m->XMailer       = 'Fivecodelab Admin';
 
     if ($c['encryption'] === 'ssl') {
         $m->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;            // implicit TLS, usually port 465
@@ -441,7 +441,7 @@ function smtp_test_connection(?string $to = null): array {
         <p style="font-size:12px;color:#94a3b8;margin-top:18px;">You can now switch SMTP <em>Enabled</em> ON and all transactional emails will flow through this server.</p>
       </div></body></html>';
     ob_start();
-    $res = smtp_send($to, 'Maventech SMTP test', $body, ['headers' => ['X-Test-Email' => '1']]);
+    $res = smtp_send($to, 'Fivecodelab SMTP test', $body, ['headers' => ['X-Test-Email' => '1']]);
     $log = ob_get_clean();
     return ['ok' => $res['ok'], 'message' => $res['ok'] ? ('Test email sent to ' . $to) : ($res['error'] ?? 'Send failed'), 'log' => $log];
 }

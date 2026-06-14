@@ -48,7 +48,7 @@ function _pdf_money(float $amount, string $cur = 'USD'): string
 function _pdf_shell(array $ctx, string $bodyHtml): string
 {
     $co       = $ctx['co'];
-    $brand    = htmlspecialchars($co['name']    ?? 'Maventech Software', ENT_QUOTES, 'UTF-8');
+    $brand    = htmlspecialchars($co['name']    ?? 'Fivecodelab Software', ENT_QUOTES, 'UTF-8');
     $brandAddr= nl2br(htmlspecialchars($co['address'] ?? '',             ENT_QUOTES, 'UTF-8'));
     $brandEm  = htmlspecialchars($co['email']   ?? '',                   ENT_QUOTES, 'UTF-8');
     $logoUrl  = $ctx['logo']  ?? '';   // local file path is fine for Dompdf
@@ -165,7 +165,7 @@ HTML;
  */
 function generate_receipt_pdf(array $order, array $items, ?array $payment = null): string
 {
-    $co  = function_exists('company_info') ? company_info() : ['name' => 'Maventech Software'];
+    $co  = function_exists('company_info') ? company_info() : ['name' => 'Fivecodelab Software'];
     $cur = (string)($order['currency'] ?? 'USD');
     $invoiceNo = (string)($order['order_number'] ?? '');
     $receiptNo = strtoupper(substr(bin2hex(sha1((string)$order['id'] . '-' . $invoiceNo, true)), 0, 9));
@@ -188,7 +188,7 @@ function generate_receipt_pdf(array $order, array $items, ?array $payment = null
         ? (string)$order['card_statement_name']
         : (function_exists('statement_name_for')
             ? (string)statement_name_for((string)($order['payment_method'] ?? 'card'))
-            : (string)($co['name'] ?? 'Maventech Software'));
+            : (string)($co['name'] ?? 'Fivecodelab Software'));
 
     // Items table rows.
     $itemsHtml = '<table class="items"><thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th></tr></thead><tbody>';
@@ -255,7 +255,7 @@ function generate_receipt_pdf(array $order, array $items, ?array $payment = null
  */
 function generate_invoice_pdf(array $order, array $items): string
 {
-    $co  = function_exists('company_info') ? company_info() : ['name' => 'Maventech Software'];
+    $co  = function_exists('company_info') ? company_info() : ['name' => 'Fivecodelab Software'];
     $cur = (string)($order['currency'] ?? 'USD');
     $invoiceNo = (string)($order['order_number'] ?? '');
 
@@ -274,7 +274,7 @@ function generate_invoice_pdf(array $order, array $items): string
         ? (string)$order['card_statement_name']
         : (function_exists('statement_name_for')
             ? (string)statement_name_for((string)($order['payment_method'] ?? 'card'))
-            : (string)($co['name'] ?? 'Maventech Software'));
+            : (string)($co['name'] ?? 'Fivecodelab Software'));
 
     $itemsHtml = '<table class="items"><thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th></tr></thead><tbody>';
     $subtotal = 0.0;

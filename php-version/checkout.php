@@ -230,7 +230,7 @@ include __DIR__ . '/includes/header.php';
       <a href="index.php" class="logo-3d d-inline-flex align-items-center justify-content-center gap-2 mx-auto mb-2 text-decoration-none" data-testid="co-banner-brand">
         <?= render_logo(36) ?>
         <span>
-          <span class="brand-text d-block lh-1">Maventech <span class="brand-grad">Software</span></span>
+          <span class="brand-text d-block lh-1">Fivecodelab <span class="brand-grad">Software</span></span>
           <small class="brand-tag">AUTHORIZED RESELLER</small>
         </span>
       </a>

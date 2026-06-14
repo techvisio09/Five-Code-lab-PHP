@@ -33,7 +33,7 @@ $features = [
     <div class="text-center mx-auto" style="max-width: 760px;">
       <div class="d-flex justify-content-center mb-3"><?= render_logo(56) ?></div>
       <span class="eyebrow">OUR STORY</span>
-      <h1 class="display-5 fw-bold mt-1">About <span class="brand-grad">Maventech Software</span></h1>
+      <h1 class="display-5 fw-bold mt-1">About <span class="brand-grad">Fivecodelab Software</span></h1>
       <p class="text-secondary mt-2 fs-5">Your trusted partner for genuine Microsoft software</p>
     </div>
   </div>

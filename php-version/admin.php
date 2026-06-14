@@ -887,8 +887,8 @@ if ($tab === 'dashboard'):
   $pmStmt->execute([$region_code]);
   $pmRows = $pmStmt->fetchAll();
   $pmTotalRev = 0; foreach ($pmRows as $r) $pmTotalRev += (float)$r['rev'];
-  $cardMerch = setting_get('gw_card_merchant_name','Maventech Software');
-  $ppMerch   = setting_get('gw_paypal_account_name','Maventech Software LLC');
+  $cardMerch = setting_get('gw_card_merchant_name','Fivecodelab Software');
+  $ppMerch   = setting_get('gw_paypal_account_name','Fivecodelab Software LLC');
   ?>
   <div class="row g-3 mt-1">
     <div class="col-12">
@@ -4476,8 +4476,8 @@ elseif ($tab === 'templates'):
         </div>
 
         <?php if ($editing['code'] === 'order_delivery'):
-          $bnCard   = setting_get('gw_card_merchant_name', defined('SITE_LEGAL') ? SITE_LEGAL : 'Maventech Software');
-          $bnPaypal = setting_get('gw_paypal_account_name', defined('SITE_LEGAL') ? SITE_LEGAL : 'Maventech Software LLC');
+          $bnCard   = setting_get('gw_card_merchant_name', defined('SITE_LEGAL') ? SITE_LEGAL : 'Fivecodelab Software');
+          $bnPaypal = setting_get('gw_paypal_account_name', defined('SITE_LEGAL') ? SITE_LEGAL : 'Fivecodelab Software LLC');
         ?>
         <div class="card-e p-3 mb-3" data-testid="billing-note-card" style="border-left:4px solid #10b981;">
           <div class="d-flex justify-content-between align-items-start mb-2">
@@ -5079,14 +5079,14 @@ elseif ($tab === 'api'):
   function mask($v) { if (!$v) return ''; $l = strlen($v); if ($l <= 8) return str_repeat('*', $l); return substr($v,0,4).str_repeat('*', $l-8).substr($v,-4); }
   $cardStatus = setting_get('gw_card_status','inactive');
   $cardProv   = setting_get('gw_card_provider','Stripe');
-  $cardMerch  = setting_get('gw_card_merchant_name','Maventech Software');
+  $cardMerch  = setting_get('gw_card_merchant_name','Fivecodelab Software');
   $cardPub    = setting_get('gw_card_public_key','');
   $cardSec    = setting_get('gw_card_secret_key','');
   $cardWh     = setting_get('gw_card_webhook_secret','');
   $cardWhUrl  = setting_get('gw_card_webhook_url','/stripe-webhook.php');
 
   $ppStatus   = setting_get('gw_paypal_status','inactive');
-  $ppAcc      = setting_get('gw_paypal_account_name','Maventech Software LLC');
+  $ppAcc      = setting_get('gw_paypal_account_name','Fivecodelab Software LLC');
   $ppCid      = setting_get('gw_paypal_client_id','');
   $ppSec      = setting_get('gw_paypal_secret','');
   $ppWh       = setting_get('gw_paypal_webhook_id','');
@@ -5159,7 +5159,7 @@ elseif ($tab === 'api'):
               </div>
               <div class="flex-grow-1">
                 <h6 class="fw-bold mb-0">PayPal</h6>
-                <small class="text-muted">Account: <strong><?= esc($ppAcc ?: 'Maventech Software LLC') ?></strong> · uses PayPal API credentials</small>
+                <small class="text-muted">Account: <strong><?= esc($ppAcc ?: 'Fivecodelab Software LLC') ?></strong> · uses PayPal API credentials</small>
                 <div class="mt-1">
                   <span class="rg-status-pill <?= $ppOn?'on':'off' ?>" data-gw-pill="paypal"><i class="bi bi-<?= $ppOn?'check-circle-fill':'slash-circle-fill' ?> me-1"></i><?= $ppOn?'LIVE':'PAUSED' ?></span>
                 </div>
@@ -5667,8 +5667,8 @@ elseif ($tab === 'reviews'):
   </div>
 
 <?php elseif ($tab === 'settings'):
-  $cardMerch  = setting_get('gw_card_merchant_name','Maventech Software');
-  $ppAcc      = setting_get('gw_paypal_account_name','Maventech Software LLC');
+  $cardMerch  = setting_get('gw_card_merchant_name','Fivecodelab Software');
+  $ppAcc      = setting_get('gw_paypal_account_name','Fivecodelab Software LLC');
 ?>
   <h5 class="fw-bold mb-1">Settings</h5>
   <p class="text-muted small mb-3">General settings. Payment credentials and merchant/company names live in <a href="admin.php?tab=api">API Management</a>.</p>

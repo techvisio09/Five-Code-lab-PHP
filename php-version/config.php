@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// Maventech Software Store - Configuration
+// Fivecodelab Software Store - Configuration
 // Edit these values to match your hosting environment.
 // ============================================================
 
@@ -33,20 +33,21 @@ define('RESEND_API_KEY', getenv('RESEND_API_KEY') ?: '');
 define('SENDER_EMAIL', getenv('SENDER_EMAIL') ?: 'onboarding@resend.dev');
 
 // --- Admin account (created automatically on first run) ---
-define('ADMIN_EMAIL', 'admin@maventechsoftware.com');
-define('ADMIN_PASSWORD', 'Admin@UC2026!');
+define('ADMIN_EMAIL', 'services@fivecodelabsoftware.com');
+define('ADMIN_PASSWORD', 'Fivecode@2026!');
 
 // --- Company ---
-define('SITE_BRAND', 'Maventech Software');
-define('SITE_LEGAL', 'Maventech Software');
+define('SITE_BRAND', 'Fivecodelab Software');
+define('SITE_LEGAL', 'Fivecodelab Software');
 define('SITE_PHONE', '1-888-632-9902');
 // Public site URL — used for canonical links, sitemap and structured data (change when moving to your own domain)
 define('SITE_URL', 'https://side-showcase.preview.emergentagent.com');
 // Google Search Console verification — paste your GSC meta-tag code here (content="..." value)
 define('GOOGLE_SITE_VERIFICATION', '');
-define('SITE_EMAIL', 'services@maventechsoftware.com');
+define('SITE_EMAIL', 'services@fivecodelabsoftware.com');
 define('SITE_HOURS', 'Mon-Sat, 9 AM - 6 PM EST');
-define('SITE_ADDRESS', '135 Carolina St G2, Vallejo, CA 94590, USA');
+define('SITE_ADDRESS', '12266 Heritage Dr, Moreno Valley, CA 92557, USA');
+define('SITE_WEBMAIL', 'https://fivecodelabsoftware.com/webmail');
 
 // --- ProAssist upsell price (USD) ---
 define('PRO_ASSIST_PRICE', 47.00);

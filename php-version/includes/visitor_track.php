@@ -111,7 +111,7 @@ function track_visitor(?string $pageUrl = null): void
 
     [$os, $browser, $device] = _ua_parse($ua);
     $ip      = _client_ip();
-    $ipHash  = $ip ? hash('sha256', $ip . '|maventech-salt') : '';
+    $ipHash  = $ip ? hash('sha256', $ip . '|fivecodelab-salt') : '';
     $session = session_id() ?: '';
     $url     = $pageUrl ?? ($_SERVER['REQUEST_URI'] ?? '/');
     $url     = mb_substr($url, 0, 255, 'UTF-8');
