@@ -5942,8 +5942,41 @@ elseif ($tab === 'reviews'):
   if ($cronTok === '') { $cronTok = bin2hex(random_bytes(8)); setting_set('seo_cron_token', $cronTok); }
 
   $health      = seo_ai_health_snapshot();
-  $aiBlogs     = seo_ai_recent_blog_posts(40, $feedRegion ?: null);
+  // Pagination — admin can see EVERY AI-published post, newest first.
+  $perPage     = 25;
+  $page        = max(1, (int)($_GET['feed_page'] ?? 1));
   $aiBlogCount = (int)db()->query("SELECT COUNT(*) FROM seo_ai_blog_log")->fetchColumn();
+  if ($feedRegion) {
+      $cs = db()->prepare("SELECT COUNT(*) FROM seo_ai_blog_log WHERE region = ?");
+      $cs->execute([$feedRegion]);
+      $aiBlogFilteredCount = (int)$cs->fetchColumn();
+  } else {
+      $aiBlogFilteredCount = $aiBlogCount;
+  }
+  $totalPages  = max(1, (int)ceil($aiBlogFilteredCount / $perPage));
+  if ($page > $totalPages) $page = $totalPages;
+  $offset      = ($page - 1) * $perPage;
+  // Fetch this page's posts
+  if ($feedRegion) {
+      $aiBlogsStmt = db()->prepare(
+          "SELECT b.*, p.image AS product_image, p.platform AS product_platform
+           FROM seo_ai_blog_log b LEFT JOIN products p ON p.slug = b.product_slug
+           WHERE b.region = ? ORDER BY b.id DESC LIMIT ? OFFSET ?"
+      );
+      $aiBlogsStmt->bindValue(1, $feedRegion, PDO::PARAM_STR);
+      $aiBlogsStmt->bindValue(2, $perPage,    PDO::PARAM_INT);
+      $aiBlogsStmt->bindValue(3, $offset,     PDO::PARAM_INT);
+  } else {
+      $aiBlogsStmt = db()->prepare(
+          "SELECT b.*, p.image AS product_image, p.platform AS product_platform
+           FROM seo_ai_blog_log b LEFT JOIN products p ON p.slug = b.product_slug
+           ORDER BY b.id DESC LIMIT ? OFFSET ?"
+      );
+      $aiBlogsStmt->bindValue(1, $perPage, PDO::PARAM_INT);
+      $aiBlogsStmt->bindValue(2, $offset,  PDO::PARAM_INT);
+  }
+  $aiBlogsStmt->execute();
+  $aiBlogs = $aiBlogsStmt->fetchAll() ?: [];
   $todayCount  = seo_ai_blog_today_count();
   $pendingBlog = seo_ai_pending_alert_post();
   $cronCmd     = '0 4 * * *  /usr/bin/php ' . realpath(__DIR__) . '/cron/seo-daily.php >/var/log/seo-daily.log 2>&1';
@@ -6300,9 +6333,10 @@ elseif ($tab === 'reviews'):
   <!-- ============ Live feed ============ -->
   <div class="ai-feed-card mb-3" data-testid="seo-live-feed">
     <div class="ai-feed-head">
-      <h6><i class="bi bi-stars"></i>Live feed · all AI-published blog posts</h6>
+      <h6><i class="bi bi-stars"></i>All AI-published blog posts</h6>
       <div class="sub">
-        <?= (int)$aiBlogCount ?> post<?= $aiBlogCount === 1 ? '' : 's' ?> auto-published ·
+        newest first · click any to view live ·
+        <strong><?= (int)$aiBlogCount ?></strong> total ·
         <span class="text-success" title="Posts that were submitted to IndexNow successfully"><i class="bi bi-broadcast"></i> <?= (int)$totalIndexed ?> indexed</span> ·
         <span class="text-primary" title="Internal product/category/blog backlinks across all AI posts"><i class="bi bi-link-45deg"></i> avg <?= number_format($totalLinks, 1) ?> backlinks/post</span>
         <?php
@@ -6390,6 +6424,36 @@ elseif ($tab === 'reviews'):
         <a class="ai-feed-open" href="blog-post.php?id=<?= esc($b['blog_id']) ?>" target="_blank" title="Open live post" data-testid="seo-feed-open-<?= (int)$b['id'] ?>"><i class="bi bi-box-arrow-up-right"></i></a>
       </div>
     <?php endforeach; endif; ?>
+
+    <?php if ($totalPages > 1): ?>
+      <!-- Pagination controls — every AI post is reachable here -->
+      <nav class="d-flex justify-content-between align-items-center py-3 px-2 border-top" data-testid="feed-pagination">
+        <small class="text-muted">
+          Showing <strong><?= $offset + 1 ?>–<?= min($offset + $perPage, $aiBlogFilteredCount) ?></strong> of <strong><?= (int)$aiBlogFilteredCount ?></strong> AI-published post<?= $aiBlogFilteredCount === 1 ? '' : 's' ?><?= $feedRegion ? ' for ' . esc($feedRegion) : '' ?>
+        </small>
+        <ul class="pagination pagination-sm mb-0">
+          <?php
+            $base = 'admin.php?tab=seo' . ($feedRegion ? '&feed_region=' . esc($feedRegion) : '');
+            $window = 2; // pages on either side
+          ?>
+          <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
+            <a class="page-link" href="<?= $base ?>&feed_page=<?= max(1, $page-1) ?>" data-testid="feed-page-prev"><i class="bi bi-chevron-left"></i></a>
+          </li>
+          <?php for ($i = 1; $i <= $totalPages; $i++):
+            if ($i === 1 || $i === $totalPages || ($i >= $page - $window && $i <= $page + $window)): ?>
+              <li class="page-item <?= $i === $page ? 'active' : '' ?>">
+                <a class="page-link" href="<?= $base ?>&feed_page=<?= $i ?>" data-testid="feed-page-<?= $i ?>"><?= $i ?></a>
+              </li>
+            <?php elseif ($i === $page - $window - 1 || $i === $page + $window + 1): ?>
+              <li class="page-item disabled"><span class="page-link">…</span></li>
+            <?php endif;
+          endfor; ?>
+          <li class="page-item <?= $page >= $totalPages ? 'disabled' : '' ?>">
+            <a class="page-link" href="<?= $base ?>&feed_page=<?= min($totalPages, $page+1) ?>" data-testid="feed-page-next"><i class="bi bi-chevron-right"></i></a>
+          </li>
+        </ul>
+      </nav>
+    <?php endif; ?>
 
     <div class="ai-feed-blog-cta">
       <a href="blog.php" target="_blank" data-testid="seo-feed-public-blog"><i class="bi bi-journal-text"></i>Open public /blog index <i class="bi bi-box-arrow-up-right" style="font-size:11px;"></i></a>

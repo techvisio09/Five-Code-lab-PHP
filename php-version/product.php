@@ -183,6 +183,7 @@ include __DIR__ . '/includes/header.php';
   <nav aria-label="breadcrumb">
     <ol class="breadcrumb small">
       <li class="breadcrumb-item"><a href="index.php">Home</a></li>
+      <li class="breadcrumb-item"><a href="brand.php?slug=<?= esc(strtolower(str_replace(' ', '-', $detectedBrand))) ?>" data-testid="product-brand-link"><?= esc($detectedBrand) ?></a></li>
       <li class="breadcrumb-item"><a href="category.php?slug=<?= esc($product['category']) ?>"><?= esc(category_title($product['category'])) ?></a></li>
       <li class="breadcrumb-item active"><?= esc($product['name']) ?></li>
     </ol>

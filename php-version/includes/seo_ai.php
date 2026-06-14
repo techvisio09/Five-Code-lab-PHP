@@ -420,6 +420,12 @@ function seo_generate_sitemap(): int
     foreach (db()->query('SELECT slug FROM categories') as $c) {
         $out[] = '  <url><loc>' . esc($base . '/category.php?slug=' . $c['slug']) . '</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>';
     }
+    // Brand pages — one per distinct manufacturer; AI engines love these as
+    // canonical brand authority pages
+    foreach (db()->query("SELECT DISTINCT brand FROM products WHERE brand <> '' AND " . active_regions_sql_in('region')) as $br) {
+        $slug = strtolower(str_replace(' ', '-', (string)$br['brand']));
+        $out[] = '  <url><loc>' . esc($base . '/brand.php?slug=' . $slug) . '</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>';
+    }
     foreach (db()->query('SELECT id FROM blog_posts') as $b) {
         $out[] = '  <url><loc>' . esc($base . '/blog-post.php?id=' . (int)$b['id']) . '</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>';
     }

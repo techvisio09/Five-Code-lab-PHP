@@ -1,0 +1,63 @@
+{
+  "summary": "Iteration 5 verifies (a) /brand.php?slug=microsoft|bitdefender|mcafee return 200 with correct H1 + product counts (30/6/1) + brand JSON-LD + products grid (verified visually on Microsoft brand page: H1='Microsoft Software', 30 product cards rendered), (b) nonexistent brand slug returns 404, (c) brand-articles-section-empty placeholder renders when seo_ai_blog_log is empty, (d) brand-articles-section + brand-article-<id> cards render after seeding 30 rows across MS/BD/MCA products, (e) product.php has data-testid=product-brand-link pointing to brand.php?slug=microsoft, (f) admin AI Auto-Blogger feed sub-text contains 'newest first · click any to view live', (g) pagination block (feed-pagination, feed-page-1, feed-page-2, feed-page-prev, feed-page-next) renders with exactly 25 rows on page 1 and the remaining rows on page 2 (?feed_page=2) when seo_ai_blog_log has 30 rows, (h) no seo-budget-alert or adm-budget-toast testids exist anywhere, (i) all 12 admin tabs return HTTP 200 with no PHP fatal/parse errors and always show adm-nav-seo in sidebar, (j) admin login works with the credentials in /app/memory/test_credentials.md, (k) robots.txt served from localhost:3000 has 41 user-agent directives including GPTBot/ClaudeBot/PerplexityBot/Google-Extended/Applebot, (l) homepage still renders LocalBusiness + Brand JSON-LD. 28/29 pytest cases passed. 1 critical regression: /sitemap.xml is missing brand.php URLs because router.php (line 8) serves sitemap-xml.php which lacks the brand-emission loop — the brand loop in includes/seo_ai.php builds a different file that isn't served. Cleanup of 30 TEST_iter5_* seed rows verified (COUNT=0 after session).",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "/sitemap.xml", "issue": "Routed to sitemap-xml.php which does NOT emit /brand.php?slug=microsoft|bitdefender|mcafee entries. Spec requires 3 brand URLs in the sitemap. The brand-emission loop in includes/seo_ai.php lines 425-428 is correct but writes to a different file that the router does not serve.", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "homepage_200_jsonld_localbusiness_brand": true,
+    "robots_dynamic_41_user_agents_includes_AI_bots": true,
+    "sitemap_uses_dynamic_host_no_hardcoded_production": true,
+    "sitemap_contains_3_brand_urls": false,
+    "brand_microsoft_200_h1_product_count_30": true,
+    "brand_bitdefender_200_h1_product_count_6": true,
+    "brand_mcafee_200_h1_product_count_1": true,
+    "brand_nonexistent_404": true,
+    "brand_articles_empty_state_renders": true,
+    "brand_articles_populated_after_seed": true,
+    "product_brand_link_breadcrumb": true,
+    "admin_login_works": true,
+    "all_12_admin_tabs_http_200_no_php_errors": true,
+    "adm_nav_seo_on_every_tab": true,
+    "seo_tab_subtext_all_ai_posts_newest_first": true,
+    "no_seo_budget_alert_testid": true,
+    "no_adm_budget_toast_testid": true,
+    "feed_pagination_block_present_when_gt_25": true,
+    "page1_renders_exactly_25_rows": true,
+    "page2_renders_remaining_5_rows": true,
+    "feed_page_prev_next_testids_present": true,
+    "playwright_brand_microsoft_renders_30_products_and_empty_articles_placeholder": true,
+    "seed_data_cleaned_up_after_run": true
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_5.py",
+    "/app/test_reports/pytest/iteration_5_results.xml"
+  ],
+  "action_items": [
+    "FIX /app/php-version/sitemap-xml.php: append a loop over distinct products.brand to emit `/brand.php?slug=<slug>` entries (3 URLs: microsoft, bitdefender, mcafee). Example: `foreach (db()->query(\"SELECT DISTINCT brand FROM products WHERE brand <> '' AND \" . active_regions_sql_in('region')) as $br) { $slug = strtolower(str_replace(' ', '-', (string)$br['brand'])); $urls[] = [$base . '/brand.php?slug=' . $slug, $today, 'weekly', '0.8']; }`. The same code already exists in includes/seo_ai.php :425-428 but is never invoked for the public sitemap because router.php routes /sitemap.xml to sitemap-xml.php."
+  ],
+  "critical_code_review_comments": [
+    "Two sitemap implementations coexist: (1) seo_ai.php seo_ai_build_sitemap() that writes a static sitemap.xml AND (2) sitemap-xml.php that streams dynamically via router.php. Only #2 is reachable from the public URL — #1 is dead code as far as users / search engines are concerned. Consolidate to one source of truth to avoid future drift.",
+    "brand.php case-insensitive brand resolution uses LOWER(REPLACE(brand,' ','-')) on every request without an index. Acceptable for 3 brands today; add `KEY idx_brand_slug ((LOWER(REPLACE(brand,' ','-'))))` if brand count grows beyond ~20.",
+    "Admin feed pagination loops `for ($i = 1; $i <= $totalPages; $i++)` to emit ellipsis sentinels. With many pages this still O(totalPages) iterations; fine for blog log volume but worth noting if rows ever reach 10k+.",
+    "brand.php articles query LIMITs 50 — there is no pagination on the public brand page even though admin paginates at 25. If a brand accumulates >50 AI articles, the oldest ones become invisible from the brand profile."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_5.py (new)",
+    "/app/test_reports/pytest/iteration_5_results.xml (new)"
+  ],
+  "success_rate": {"backend": "96.55% (28/29)", "frontend": "100%"},
+  "test_credentials": "Admin: services@fivecodelabsoftware.com / Fivecode@2026! (from /app/memory/test_credentials.md). Login posts to /login.php and redirects to admin.php.",
+  "seed_data_creation": "Inserted 30 TEST_iter5_* rows into seo_ai_blog_log across Microsoft / Bitdefender / McAfee products, regions US/UK/AU/CA. Used as the pagination + brand-articles fixture (scope=session). Verified cleanup at end: COUNT(*) WHERE blog_id LIKE 'TEST_iter5%' = 0.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "test_iteration_5.py is the regression suite for this iteration. To re-verify after the sitemap-xml.php fix is applied: `pytest /app/backend/tests/test_iteration_5.py::TestPublicSEO::test_sitemap_contains_brand_entries -v`. The seeded_blog_rows fixture is session-scoped and auto-cleans. Do NOT click any Run-now/Publish-batch/Citation-scan buttons (LLM budget exceeded on Emergent key).",
+  "rca_of_the_issue": "router.php line 8 maps /sitemap.xml → sitemap-xml.php. sitemap-xml.php contains URL emission for static pages, categories, products, blog_posts, and content pages — but NO loop over distinct products.brand to emit /brand.php?slug=<slug>. Meanwhile, includes/seo_ai.php has the correct brand emission at lines 425-428 inside seo_ai_build_sitemap() which writes to /app/php-version/sitemap.xml — but that static file is never served because the router intercepts /sitemap.xml first. Reproduction: `curl -s https://side-showcase.preview.emergentagent.com/sitemap.xml | grep brand.php` → returns 0 matches. Fix: replicate the brand emission loop from seo_ai.php into sitemap-xml.php (preferred), OR remove the router intercept so the static sitemap.xml is served (riskier — stalls daily because nothing rebuilds it on schedule)."
+}
