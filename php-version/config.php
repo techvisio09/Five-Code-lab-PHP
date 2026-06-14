@@ -40,8 +40,12 @@ define('ADMIN_PASSWORD', 'Fivecode@2026!');
 define('SITE_BRAND', 'Fivecodelab Software');
 define('SITE_LEGAL', 'Fivecodelab Software');
 define('SITE_PHONE', '1-888-632-9902');
-// Public site URL — used for canonical links, sitemap and structured data (change when moving to your own domain)
-define('SITE_URL', 'https://side-showcase.preview.emergentagent.com');
+// Public site URL.  Leave EMPTY for production — site_url() will then auto-
+// detect the live domain from $_SERVER['HTTP_HOST'] so sitemap, robots.txt,
+// JSON-LD and IndexNow submissions all use the real public domain.
+// If your host is behind a strict reverse proxy you can hard-code it here
+// (e.g. 'https://fivecodelabsoftware.com').  An env var SITE_URL overrides.
+define('SITE_URL', getenv('SITE_URL') ?: '');
 // Google Search Console verification — paste your GSC meta-tag code here (content="..." value)
 define('GOOGLE_SITE_VERIFICATION', '');
 define('SITE_EMAIL', 'services@fivecodelabsoftware.com');

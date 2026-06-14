@@ -50,27 +50,33 @@ Rebrand the existing storefront from "Maventech Software" to **Fivecodelab Softw
 
 ## Latest enhancements (2026-06-14 evening)
 
-### Distinct-product daily rotation (hard guarantee)
-- `seo_ai_pick_blog_product_for_market()` now enforces that every day's 5-6 posts cover **5-6 distinct products** (never two posts about the same product in one day, even across different markets).
-- `seo_ai_publish_blog_for_product()` has a hard duplicate-guard at the SQL level — even if two threads race the picker, the second insert is rejected with a clean error.
+### Full automation · 6 posts × 4 markets = 24 posts/day
+- `seo_ai_run_daily_blog()` rewritten as **per-market round-robin** publisher. Default cap: 6 posts per market per calendar day (configurable via `seo_ai_per_market_post_cap` setting, range 1-10). Hard guarantee that every day's 24 posts cover 24 different products (SQL-level NOT IN + duplicate-guard before insert).
+- Every published post auto-submits its URL to **IndexNow** the moment it's saved (fans out to Bing/Yandex/Naver/Seznam). `indexnow_submitted_at` timestamp persisted to `seo_ai_blog_log`.
+- Internal backlink counter — `seo_ai_publish_blog_for_product()` counts `<a href="(product|category|blog-post).php">` links in each generated article and stores the count in `seo_ai_blog_log.internal_links`. Average shows in the live feed header.
+- LLM call retry with exponential backoff (3 attempts × 0.8s base) so transient rate-limits don't turn into missing posts.
 
-### Go-Live Checklist (production-readiness audit + on-demand submission)
-- New orange-themed card in the AI Auto-Blogger tab with **8 live checks** (sitemap, robots.txt with all AI crawlers, llms-full.txt, IndexNow key, merchant feed, AI auto-blogger active, daily cron healthy, citation tracker baseline). Real-time score `passing/total` with traffic-light coloring.
-- **"Submit sitemap to Google + Bing + IndexNow now"** big yellow button — fires every public URL (homepage, shop, blog, all products, all categories, all blog posts) at IndexNow which fans out to Bing/Yandex/Naver/Seznam. Also tries the legacy Google + Bing `/ping?sitemap=` endpoints (note: both deprecated in 2023/2025, kept for legacy hosts).
-- Post-launch verification tools (Google Rich Results, Schema.org validator, PageSpeed Insights, Bing Webmaster, Google Search Console, live sitemap).
+### CRITICAL LLM-budget-exceeded alert (production safeguard)
+- `seo_llm_complete()` now detects HTTP-400 "budget exceeded" errors and persists a flag in `settings.seo_ai_budget_alert` so the SEO Centre AND every other admin page show a clear red alert + global toast directing the operator to top-up the Universal Key.
+- Alert clears automatically the moment the next successful LLM call goes through.
 
-### Homepage `LocalBusiness` + `Brand` schema (Google Knowledge Panel + AI citations)
-- New `Brand` entity with slogan + description so AI engines treat "Fivecodelab" as a citable named brand.
-- `LocalBusiness` fully populated:
-  - **Parsed PostalAddress**: streetAddress, addressLocality (Moreno Valley), addressRegion (CA), postalCode (92557), addressCountry (US — ISO 3166-1 alpha-2)
-  - **`currenciesAccepted`**: USD, GBP, AUD, CAD (read live from the active regions table)
-  - **`areaServed`**: 4 `Country` entries (US, GB, AU, CA)
-  - **`openingHoursSpecification`**: 2 blocks — weekday Mon-Fri 09:00-18:00 + Saturday 10:00-16:00 (Sunday closed by omission)
-  - **`geo.GeoCoordinates`** + `hasMap` link for Google "near me" answers
-  - **`paymentAccepted`**: Visa, MasterCard, Amex, PayPal, Apple Pay, Google Pay, Cryptocurrency
-- Organization and LocalBusiness both now link to `#brand` entity (single canonical brand identity for AI engines).
+### Live Feed per-country filter chips
+- 5 chips: **All markets · US · UK · AU · CA** with per-country totals and "today X/cap" counters live next to each chip.
+- Clicking a chip navigates to `?tab=seo&feed_region=XX` and filters the feed server-side.
+- Each feed row now shows: AI · PUBLISHED pill, region pill, **INDEXED** or **PENDING** badge, **N LINKS** badge, date, read-time, product link, blue open button.
+- Image bug fixed: `onerror` handler replaces broken thumbnails with the purple robot icon so the row layout never collapses.
 
-## Earlier P3 cleanup
+### Anti-Scraper / AI-Content-Clone Watchdog
+- `seo_scrape_run()` asks GPT-4.1 for evidence of third-party clones of our 10 most recent AI-written articles. Findings → `seo_ai_scrape_alerts` table with status flag for DMCA workflow.
+- Weekly cron registered (`cron/scrape-weekly.php` + 10-minute warmup in `start.sh`).
+- Admin card surfaces total + open alerts + "Scan for clones now" button + recent-alerts collapsible table.
+
+### Production-cutover hardening
+- `SITE_URL` constant no longer hardcoded — defaults to empty, allowing `site_url()` to auto-detect from `$_SERVER['HTTP_HOST']`.
+- Belt-and-braces: `site_url()` now also persists the live host into `settings.site_url` on every web request, so even CLI cron jobs writing sitemaps know the public domain.
+- Resolution order: env var `SITE_URL` → `SITE_URL` constant → `$_SERVER['HTTP_HOST']` → `settings.site_url` → `http://localhost`.
+
+## Earlier 2026-06-14 enhancements
 - **Webmail link removed from footer** (Brand & Support columns). Top trust-bar Webmail link kept.
 - **`merchant-feed.xml` refreshed** — 37 products now exported with rich Google Merchant + Bing Shopping fields: `g:mobile_link`, `g:mpn`, `g:product_type`, `g:item_group_id`, `g:product_highlight` (×4), `g:additional_image_link`, multi-country `g:shipping` (US/GB/CA/AU), `g:max_handling_time`, `g:min_handling_time`, `g:tax`, 5× `g:custom_label_*` (Digital, brand, platform, sale state, category), `g:product_review_count` + `g:product_review_average`, `g:sale_price` + `g:sale_price_effective_date`.
 - **Per-post `Article` JSON-LD** on `blog-post.php` — drives Google Top Stories eligibility + clean AI summarisation: `mainEntityOfPage`, `headline`, `wordCount` (auto-computed), `timeRequired` (auto-computed reading minutes), `articleSection`, `keywords`, `inLanguage`, `isAccessibleForFree`, `author`/`publisher` Organization with 512×512 `ImageObject` logo, `BreadcrumbList`, plus `itemscope` microdata on the `<article>` element.

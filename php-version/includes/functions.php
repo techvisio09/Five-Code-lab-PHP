@@ -768,11 +768,34 @@ function product_keywords(array $p): string
 
 function site_url(): string
 {
+    // 1. Explicit override wins (env var or SITE_URL constant) — set this on
+    //    production hosts so cron jobs running from CLI generate sitemaps
+    //    pointing at the live public domain.
+    $env = getenv('SITE_URL');
+    if ($env) return rtrim($env, '/');
     if (defined('SITE_URL') && SITE_URL !== '') return rtrim(SITE_URL, '/');
-    $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    // Behind the Kubernetes ingress the original scheme arrives via X-Forwarded-Proto
-    if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) $proto = $_SERVER['HTTP_X_FORWARDED_PROTO'];
-    return $proto . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+    // 2. Fall back to the current request host (works for any web request)
+    if (!empty($_SERVER['HTTP_HOST'])) {
+        $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) $proto = $_SERVER['HTTP_X_FORWARDED_PROTO'];
+        return $proto . '://' . $_SERVER['HTTP_HOST'];
+    }
+    // 3. Last-resort fallback — saved in `settings.site_url` by the first
+    //    web request after deploy.  Prevents CLI cron from writing localhost
+    //    URLs into the sitemap.
+    $saved = setting_get('site_url', '');
+    if ($saved) return rtrim($saved, '/');
+    return 'http://localhost';
+}
+
+// Auto-persist the live host on every web request so CLI cron can find it.
+if (PHP_SAPI !== 'cli' && !empty($_SERVER['HTTP_HOST'])) {
+    try {
+        $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) $proto = $_SERVER['HTTP_X_FORWARDED_PROTO'];
+        $live = $proto . '://' . $_SERVER['HTTP_HOST'];
+        if (setting_get('site_url', '') !== $live) setting_set('site_url', $live);
+    } catch (Throwable $e) { /* DB may not exist yet — fine */ }
 }
 
 /* ---------------- Coupons: code => percent off ---------------- */
