@@ -30,6 +30,10 @@ fi
 mysql -uroot ucode_store -e "ALTER TABLE products ADD COLUMN IF NOT EXISTS activation_url VARCHAR(500) DEFAULT NULL" 2>/dev/null || true
 mysql -uroot ucode_store -e "ALTER TABLE products ADD COLUMN IF NOT EXISTS install_guide_url VARCHAR(500) DEFAULT NULL" 2>/dev/null || true
 
+# 2c) Make sure all 4 AI-Auto-Blogger target markets exist + are active
+mysql -uroot ucode_store -e "INSERT IGNORE INTO regions (code, name, currency, currency_symbol, tax_rate, active) VALUES ('AU', 'Australia', 'AUD', 'A\$', 0.1000, 1)" 2>/dev/null || true
+mysql -uroot ucode_store -e "UPDATE regions SET active=1 WHERE code IN ('US','UK','AU','CA')" 2>/dev/null || true
+
 # Visitor analytics — one row per public page view from a real human (bots/admin skipped at the PHP layer).
 mysql -uroot ucode_store -e "CREATE TABLE IF NOT EXISTS visitor_log (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,

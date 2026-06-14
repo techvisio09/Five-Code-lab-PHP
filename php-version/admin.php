@@ -5846,22 +5846,25 @@ elseif ($tab === 'reviews'):
       header('Location: admin.php?tab=seo&msg=Acknowledged'); exit;
   }
 
-  // Manually trigger the AI auto-blog right now (skips the once-a-day cap by force-flag)
+  // Manually trigger the AI auto-blog batch (5-6 posts, multi-market)
   $forceBlog = null;
   if (($_POST['action'] ?? '') === 'seo_auto_blog_now') {
       try {
-          $product = seo_ai_pick_blog_product();
-          if ($product) {
-              $forceBlog = seo_ai_publish_blog_for_product($product);
-          } else {
-              $forceBlog = ['ok' => false, 'error' => 'no eligible product'];
+          // Run the same multi-market routine the cron uses
+          $forceBlog = seo_ai_run_daily_blog();
+          // If today's cap already filled, force one extra post in the next market
+          if (empty($forceBlog['posts']) && !empty($forceBlog['skipped'])) {
+              foreach (seo_target_markets() as $m) {
+                  $p = seo_ai_pick_blog_product_for_market($m);
+                  if ($p) { $forceBlog = ['posts' => [seo_ai_publish_blog_for_product($p, $m)], 'forced' => true]; break; }
+              }
           }
       } catch (Throwable $e) {
           $forceBlog = ['ok' => false, 'error' => $e->getMessage()];
       }
   }
 
-  // Run the daily pipeline on demand
+  // Run the full SEO pipeline (LLM meta refresh + sitemap + IndexNow + auto-blog)
   $runResult = null;
   if (($_POST['action'] ?? '') === 'seo_run_now') {
       try {
@@ -5874,48 +5877,215 @@ elseif ($tab === 'reviews'):
   $cronTok = setting_get('seo_cron_token', '');
   if ($cronTok === '') { $cronTok = bin2hex(random_bytes(8)); setting_set('seo_cron_token', $cronTok); }
 
-  $totalProducts = (int)db()->query('SELECT COUNT(*) FROM products')->fetchColumn();
-  $totalBlogs    = (int)db()->query('SELECT COUNT(*) FROM blog_posts')->fetchColumn();
-  $aiProducts    = (int)db()->query("SELECT COUNT(*) FROM seo_meta WHERE kind='product'")->fetchColumn();
-  $aiBlogs       = (int)db()->query("SELECT COUNT(*) FROM seo_meta WHERE kind='blog'")->fetchColumn();
-  $coverageProd  = $totalProducts ? round($aiProducts / $totalProducts * 100) : 0;
-  $coverageBlog  = $totalBlogs    ? round($aiBlogs    / $totalBlogs    * 100) : 0;
-  $recent        = seo_recent_runs(8);
-  $pendingBlog   = seo_ai_pending_alert_post();
-  $aiBlogs10     = seo_ai_recent_blog_posts(10);
-  $aiBlogCount   = (int)db()->query("SELECT COUNT(*) FROM seo_ai_blog_log")->fetchColumn();
-  $cronCmd       = '0 4 * * *  /usr/bin/php ' . realpath(__DIR__) . '/cron/seo-daily.php >/var/log/seo-daily.log 2>&1';
-  $webCronUrl    = rtrim(site_url(), '/') . '/cron/seo-daily.php?token=' . urlencode($cronTok);
+  $health      = seo_ai_health_snapshot();
+  $aiBlogs     = seo_ai_recent_blog_posts(20);
+  $aiBlogCount = (int)db()->query("SELECT COUNT(*) FROM seo_ai_blog_log")->fetchColumn();
+  $todayCount  = seo_ai_blog_today_count();
+  $pendingBlog = seo_ai_pending_alert_post();
+  $cronCmd     = '0 4 * * *  /usr/bin/php ' . realpath(__DIR__) . '/cron/seo-daily.php >/var/log/seo-daily.log 2>&1';
+  $webCronUrl  = rtrim(site_url(), '/') . '/cron/seo-daily.php?token=' . urlencode($cronTok);
+
+  // Human "X mins/hours ago" helper
+  $ago = function (?int $s): string {
+      if ($s === null) return 'never';
+      if ($s < 60)    return $s . 's ago';
+      if ($s < 3600)  return floor($s / 60) . 'm ago';
+      if ($s < 86400) return floor($s / 3600) . 'h ago';
+      return floor($s / 86400) . 'd ago';
+  };
 ?>
-  <h5 class="fw-bold mb-1"><i class="bi bi-stars me-2 text-warning"></i>AI SEO Centre <small class="text-muted fs-6">— SEO · GEO · AEO automation</small></h5>
-  <p class="text-muted small mb-4">Powered by Claude Sonnet 4.6 (via the Emergent Universal Key). Generates SEO-friendly meta + voice-search-friendly Q&amp;A, refreshes the sitemap + <code>llms-full.txt</code>, pings IndexNow (Bing/Yandex/Seznam) — and <strong>auto-publishes one fresh blog post about a featured product every day</strong>, hands-free.</p>
+
+<style>
+/* ===== AI SEO Centre — bespoke styling (purple AI vibe) ===== */
+.ai-hero {
+  position:relative; overflow:hidden;
+  background: linear-gradient(135deg, #faf5ff 0%, #f5f3ff 50%, #fdf2f8 100%);
+  border:1px solid #e9d5ff; border-radius: 18px;
+  padding: 22px 26px;
+}
+[data-bs-theme="dark"] .ai-hero {
+  background: linear-gradient(135deg, rgba(139,92,246,.18) 0%, rgba(99,102,241,.14) 50%, rgba(236,72,153,.10) 100%);
+  border-color: rgba(139,92,246,.40);
+}
+.ai-hero-bot {
+  width:48px; height:48px; flex-shrink:0;
+  border-radius:14px;
+  background: linear-gradient(135deg,#7c3aed 0%,#8b5cf6 50%,#a855f7 100%);
+  display:inline-flex; align-items:center; justify-content:center;
+  color:#fff; font-size:24px;
+  box-shadow: 0 8px 24px rgba(124,58,237,.40);
+}
+.ai-hero h5 { color:#581c87; font-weight:800; margin:0; }
+[data-bs-theme="dark"] .ai-hero h5 { color:#e9d5ff; }
+.ai-hero-sub { color:#6b21a8; font-size:13.5px; }
+[data-bs-theme="dark"] .ai-hero-sub { color:#c4b5fd; }
+.ai-hero-runnow {
+  font-weight: 700; color:#7c3aed; text-decoration:none;
+  display:inline-flex; align-items:center; gap:6px;
+  border-bottom:1.5px solid transparent;
+  transition: border-color .15s;
+}
+.ai-hero-runnow:hover { border-bottom-color:#7c3aed; color:#7c3aed; }
+[data-bs-theme="dark"] .ai-hero-runnow { color:#c4b5fd; }
+[data-bs-theme="dark"] .ai-hero-runnow:hover { color:#e9d5ff; border-bottom-color:#c4b5fd; }
+
+.ai-stats {
+  background:#fff; border:1px solid var(--border); border-radius:14px;
+  padding: 18px 22px;
+  display: grid; grid-template-columns: 1fr 1fr 1fr 1.4fr 1fr; gap:24px;
+  align-items: flex-start;
+}
+[data-bs-theme="dark"] .ai-stats { background: var(--card-bg); }
+.ai-stat-label { font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:#94a3b8; margin-bottom:6px; }
+.ai-stat-value { font-size:20px; font-weight:800; color: var(--text); line-height:1.15; }
+.ai-stat-value-ok { color:#16a34a; }
+.ai-stat-sub   { font-size:11.5px; color: var(--muted); margin-top:4px; }
+.ai-stat-engines {
+  display:flex; flex-wrap:wrap; gap:5px 12px;
+  font-size:14px; font-weight:700; color: var(--text);
+  align-items:center; line-height:1.4;
+}
+.ai-stat-engines .e-pill { display:inline-flex; align-items:center; gap:5px; font-size:14px; }
+.ai-stat-engines .e-pill i { font-size:15px; }
+.ai-stat-engines .check { color:#16a34a; }
+.ai-stat-health { display:flex; align-items:flex-start; gap:10px; }
+.ai-stat-health-dot {
+  width:30px; height:30px; flex-shrink:0;
+  border-radius:50%;
+  background: linear-gradient(135deg,#16a34a,#22c55e);
+  color:#fff; display:inline-flex; align-items:center; justify-content:center;
+  font-size:18px; box-shadow:0 4px 12px rgba(22,163,74,.35);
+}
+.ai-stat-health-dot.bad { background: linear-gradient(135deg,#dc2626,#ef4444); box-shadow: 0 4px 12px rgba(220,38,38,.35); }
+.ai-stat-health-title { font-weight:800; color:#15803d; font-size:15px; }
+.ai-stat-health-title.bad { color:#b91c1c; }
+[data-bs-theme="dark"] .ai-stat-health-title { color:#86efac; }
+[data-bs-theme="dark"] .ai-stat-health-title.bad { color:#fca5a5; }
+
+@media (max-width: 991px) {
+  .ai-stats { grid-template-columns: 1fr 1fr 1fr; gap: 16px 20px; }
+  .ai-stats > div:nth-child(4), .ai-stats > div:nth-child(5) { grid-column: span 1; }
+}
+@media (max-width: 600px) {
+  .ai-stats { grid-template-columns: 1fr 1fr; }
+}
+
+.ai-feed-card {
+  background:#fff; border:1px dashed #e9d5ff; border-radius:16px;
+  padding: 18px 18px 4px;
+}
+[data-bs-theme="dark"] .ai-feed-card { background: var(--card-bg); border-color: rgba(139,92,246,.30); }
+
+.ai-feed-head {
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 0 6px 14px;
+  border-bottom:1px solid var(--border);
+  margin-bottom: 8px;
+}
+.ai-feed-head h6 {
+  font-weight:800; letter-spacing:.10em; text-transform:uppercase;
+  font-size:11.5px; color:#7c3aed; margin:0;
+  display:inline-flex; align-items:center; gap:6px;
+}
+.ai-feed-head h6 i { color:#a855f7; font-size:14px; }
+.ai-feed-head .sub { font-size:11.5px; color: var(--muted); }
+.ai-feed-row {
+  display:flex; align-items:center; gap:18px;
+  padding: 16px 8px;
+  border-bottom: 1px solid var(--border);
+  transition: background .15s;
+}
+.ai-feed-row:last-child { border-bottom: none; }
+.ai-feed-row:hover { background: rgba(139,92,246,.04); }
+[data-bs-theme="dark"] .ai-feed-row:hover { background: rgba(139,92,246,.12); }
+
+.ai-feed-thumb {
+  width:64px; height:64px; flex-shrink:0;
+  border-radius:10px; background:#f3f4f6;
+  object-fit:contain; padding:6px; border:1px solid var(--border);
+}
+[data-bs-theme="dark"] .ai-feed-thumb { background:#1f2937; }
+.ai-feed-thumb-fallback {
+  width:64px; height:64px; flex-shrink:0;
+  border-radius:10px;
+  background: linear-gradient(135deg,#a855f7,#7c3aed);
+  color:#fff; display:inline-flex; align-items:center; justify-content:center;
+  font-size:26px; border:1px solid var(--border);
+}
+.ai-feed-meta { flex: 1; min-width:0; }
+.ai-feed-pillline { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
+.ai-pub-pill {
+  display:inline-flex; align-items:center; gap:4px;
+  background: linear-gradient(135deg,#7c3aed 0%,#8b5cf6 100%);
+  color:#fff; font-weight:800; font-size:9.5px; letter-spacing:.14em;
+  padding: 4px 10px; border-radius:6px; text-transform:uppercase;
+  box-shadow: 0 4px 10px rgba(124,58,237,.30);
+}
+.ai-pub-pill::before { content: '✨'; font-size:10px; margin-right:2px; }
+.ai-region-pill {
+  display:inline-flex; align-items:center; gap:4px;
+  font-weight:700; font-size:10px; letter-spacing:.14em;
+  padding: 4px 8px; border-radius:6px;
+  background: #ddd6fe; color:#5b21b6; border:1px solid #c4b5fd;
+}
+[data-bs-theme="dark"] .ai-region-pill { background: rgba(139,92,246,.25); color:#ddd6fe; border-color: rgba(196,181,253,.45); }
+.ai-region-pill[data-r="UK"] { background:#dbeafe; color:#1e40af; border-color:#93c5fd; }
+.ai-region-pill[data-r="AU"] { background:#fef3c7; color:#92400e; border-color:#fcd34d; }
+.ai-region-pill[data-r="CA"] { background:#fee2e2; color:#991b1b; border-color:#fca5a5; }
+[data-bs-theme="dark"] .ai-region-pill[data-r="UK"] { background: rgba(59,130,246,.22); color:#bfdbfe; border-color: rgba(147,197,253,.45); }
+[data-bs-theme="dark"] .ai-region-pill[data-r="AU"] { background: rgba(245,158,11,.22); color:#fde68a; border-color: rgba(252,211,77,.45); }
+[data-bs-theme="dark"] .ai-region-pill[data-r="CA"] { background: rgba(239,68,68,.22); color:#fecaca; border-color: rgba(252,165,165,.45); }
+.ai-feed-meta-small { color: var(--muted); font-size:12px; }
+.ai-feed-title {
+  font-weight:800; color: var(--text); font-size:15.5px; line-height:1.35;
+  margin: 2px 0 4px;
+}
+.ai-feed-prod { color: var(--muted); font-size:12.5px; display:inline-flex; align-items:center; gap:5px; }
+.ai-feed-prod i { color:#94a3b8; font-size:12px; }
+.ai-feed-open {
+  width:42px; height:42px; flex-shrink:0;
+  border-radius:10px;
+  background: linear-gradient(135deg,#3b82f6,#1d4ed8);
+  color:#fff; display:inline-flex; align-items:center; justify-content:center;
+  font-size:18px; text-decoration:none;
+  box-shadow: 0 4px 12px rgba(29,78,216,.30);
+  transition: transform .12s;
+}
+.ai-feed-open:hover { color:#fff; transform: scale(1.05); }
+.ai-feed-blog-cta {
+  display:flex; justify-content:center; padding: 18px 0 8px;
+  border-top:1px dashed var(--border); margin-top: 4px;
+}
+.ai-feed-blog-cta a {
+  color:#7c3aed; font-weight:700; font-size:13.5px;
+  display:inline-flex; align-items:center; gap:8px; text-decoration:none;
+}
+.ai-feed-blog-cta a:hover { color:#5b21b6; }
+[data-bs-theme="dark"] .ai-feed-blog-cta a { color:#c4b5fd; }
+</style>
 
   <?php if ($pendingBlog): ?>
-    <!-- AI auto-publish alert: shows until admin acknowledges -->
-    <div class="card-e mb-4" style="border-left:5px solid #f59e0b !important;background:linear-gradient(135deg,#fffbeb,#fef3c7);" data-testid="seo-ai-blog-alert">
-      <div class="d-flex align-items-start gap-3 p-4">
-        <div style="width:48px;height:48px;flex-shrink:0;border-radius:14px;background:linear-gradient(135deg,#f59e0b,#d97706);display:inline-flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(245,158,11,.35);">
-          <i class="bi bi-robot" style="font-size:24px;color:#fff;"></i>
+    <!-- AI auto-publish alert: shows until admin dismisses -->
+    <div class="card-e mb-3" style="border-left:5px solid #8b5cf6 !important;background:linear-gradient(135deg,rgba(167,139,250,.10),rgba(196,181,253,.08));" data-testid="seo-ai-blog-alert">
+      <div class="d-flex align-items-start gap-3 p-3">
+        <div class="ai-hero-bot" style="width:38px;height:38px;font-size:18px;border-radius:11px;">
+          <i class="bi bi-robot"></i>
         </div>
         <div class="flex-grow-1">
-          <div class="d-flex align-items-center gap-2 mb-1">
-            <strong class="text-warning-emphasis" style="letter-spacing:.3px;">AI just published a new post</strong>
-            <span class="badge bg-warning text-dark">Auto-blogger</span>
+          <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+            <strong style="color:#5b21b6;">AI just published a new post</strong>
+            <span class="ai-region-pill" data-r="<?= esc($pendingBlog['region'] ?? 'US') ?>"><?= esc($pendingBlog['region'] ?? 'US') ?></span>
             <small class="text-muted">· <?= esc(date('M j, Y · g:i a', strtotime((string)$pendingBlog['created_at']) ?: time())) ?></small>
           </div>
-          <div class="fw-bold mb-1" style="color:#78350f;font-size:16px;" data-testid="seo-ai-blog-alert-title"><?= esc($pendingBlog['title']) ?></div>
-          <div class="small mb-3" style="color:#78350f;">
-            Featured product: <strong><?= esc($pendingBlog['product_name']) ?></strong> · <?= (int)$pendingBlog['word_count'] ?> words
-          </div>
-          <div class="d-flex gap-2 flex-wrap">
-            <a href="blog-post.php?id=<?= esc($pendingBlog['blog_id']) ?>" target="_blank" class="btn btn-warning btn-sm fw-semibold" data-testid="seo-ai-blog-view">
+          <div class="fw-bold" style="color:#4c1d95;font-size:15px;" data-testid="seo-ai-blog-alert-title"><?= esc($pendingBlog['title']) ?></div>
+          <div class="d-flex gap-2 flex-wrap mt-2">
+            <a href="blog-post.php?id=<?= esc($pendingBlog['blog_id']) ?>" target="_blank" class="btn btn-sm fw-semibold" style="background:#7c3aed;color:#fff;border:none;" data-testid="seo-ai-blog-view">
               <i class="bi bi-eye me-1"></i>View live post
             </a>
             <form method="post" class="d-inline">
               <input type="hidden" name="action" value="seo_ack_blog">
-              <input type="hidden" name="ack_id" value="<?= (int)$pendingBlog['id'] ?>">
-              <button class="btn btn-outline-warning btn-sm" type="submit" data-testid="seo-ai-blog-ack">
-                <i class="bi bi-check2-circle me-1"></i>Got it, dismiss
+              <button class="btn btn-sm btn-outline-secondary" type="submit" data-testid="seo-ai-blog-ack">
+                <i class="bi bi-check2 me-1"></i>Dismiss all
               </button>
             </form>
           </div>
@@ -5924,156 +6094,158 @@ elseif ($tab === 'reviews'):
     </div>
   <?php endif; ?>
 
-  <!-- Coverage cards -->
-  <div class="row g-3 mb-4">
-    <div class="col-md-3"><div class="card-e p-3"><small class="text-muted text-uppercase fw-bold" style="letter-spacing:.14em;font-size:10px;">Product coverage</small><div class="fw-bold fs-3 mt-1"><?= $coverageProd ?>%</div><div class="small text-muted"><?= $aiProducts ?> / <?= $totalProducts ?> products AI-optimised</div></div></div>
-    <div class="col-md-3"><div class="card-e p-3"><small class="text-muted text-uppercase fw-bold" style="letter-spacing:.14em;font-size:10px;">Blog coverage</small><div class="fw-bold fs-3 mt-1"><?= $coverageBlog ?>%</div><div class="small text-muted"><?= $aiBlogs ?> / <?= $totalBlogs ?> posts AI-optimised</div></div></div>
-    <div class="col-md-3"><div class="card-e p-3"><small class="text-muted text-uppercase fw-bold" style="letter-spacing:.14em;font-size:10px;">AI-written posts</small><div class="fw-bold fs-3 mt-1"><?= $aiBlogCount ?></div><div class="small text-muted">auto-published total</div></div></div>
-    <div class="col-md-3"><div class="card-e p-3"><small class="text-muted text-uppercase fw-bold" style="letter-spacing:.14em;font-size:10px;">Last run</small><div class="fw-bold fs-3 mt-1"><?= !empty($recent[0]) ? esc(date('M j H:i', strtotime((string)$recent[0]['ran_at']) ?: time())) : '—' ?></div><div class="small text-muted"><?= !empty($recent[0]) ? (int)$recent[0]['items_refreshed'] . ' items refreshed' : 'never run' ?></div></div></div>
-  </div>
-
-  <!-- AI Auto-Blogger card -->
-  <div class="card-e p-4 mb-4">
-    <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
-      <div>
-        <h6 class="fw-bold mb-1"><i class="bi bi-robot me-1 text-warning"></i>AI Auto-Blogger <span class="badge bg-success-subtle text-success-emphasis ms-1" style="font-size:10px;">HANDS-FREE</span></h6>
-        <p class="small text-muted mb-0">Picks one featured product every calendar day, writes an editorial-style guide about it (600-900 words, HTML-formatted with H2/H3 sections + CTA), publishes it to <code>/blog.php</code>, and shows the alert above so you know what the AI just shipped.</p>
+  <!-- ============ Hero card ============ -->
+  <div class="ai-hero mb-3" data-testid="seo-hero">
+    <div class="d-flex align-items-center gap-3 justify-content-between flex-wrap">
+      <div class="d-flex align-items-center gap-3">
+        <div class="ai-hero-bot"><i class="bi bi-robot"></i></div>
+        <div>
+          <h5>AI Auto-Blogger</h5>
+          <div class="ai-hero-sub">daily article + indexing across <strong>US · UK · AU · CA</strong></div>
+        </div>
       </div>
-      <form method="post" class="d-flex gap-2">
-        <input type="hidden" name="action" value="seo_auto_blog_now">
-        <button class="btn btn-warning rounded-pill px-4 fw-semibold" type="submit" data-testid="seo-auto-blog-now" onclick="this.querySelector('span').classList.remove('d-none'); this.disabled=true; this.form.submit();">
-          <span class="spinner-border spinner-border-sm me-1 d-none"></span>
-          <i class="bi bi-magic me-1"></i>Generate one now
+      <form method="post" class="m-0">
+        <input type="hidden" name="action" value="seo_run_now">
+        <input type="hidden" name="max" value="6">
+        <button class="ai-hero-runnow" type="submit" style="background:none;border:none;padding:0;" data-testid="seo-run-now">
+          <i class="bi bi-play-fill"></i> Run now
         </button>
       </form>
     </div>
-
-    <?php if ($forceBlog): ?>
-      <?php if (!empty($forceBlog['ok'])): ?>
-        <div class="alert alert-success mt-3 mb-0" data-testid="seo-auto-blog-result-ok">
-          <strong><i class="bi bi-check-circle-fill me-2"></i>Published!</strong>
-          <div class="mt-1">"<?= esc($forceBlog['title']) ?>" — <?= (int)$forceBlog['word_count'] ?> words about <strong><?= esc($forceBlog['product']) ?></strong>.</div>
-          <a href="<?= esc($forceBlog['url']) ?>" target="_blank" class="btn btn-sm btn-outline-success mt-2"><i class="bi bi-box-arrow-up-right me-1"></i>View the live post</a>
-        </div>
-      <?php else: ?>
-        <div class="alert alert-danger mt-3 mb-0" data-testid="seo-auto-blog-result-error"><i class="bi bi-x-octagon me-2"></i>Generation failed: <?= esc($forceBlog['error'] ?? 'unknown error') ?></div>
-      <?php endif; ?>
-    <?php endif; ?>
-
-    <?php if (!empty($aiBlogs10)): ?>
-      <hr class="my-3">
-      <div class="small text-muted text-uppercase fw-bold mb-2" style="letter-spacing:.12em;font-size:10px;">Recent AI-written posts</div>
-      <div class="table-responsive">
-        <table class="table table-sm align-middle small mb-0" data-testid="seo-ai-blog-history">
-          <thead>
-            <tr>
-              <th style="width:140px;">When</th>
-              <th>Title</th>
-              <th>Featured product</th>
-              <th style="width:90px;">Words</th>
-              <th style="width:90px;"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($aiBlogs10 as $b): ?>
-              <tr>
-                <td class="text-muted"><?= esc(date('M j H:i', strtotime((string)$b['created_at']) ?: time())) ?></td>
-                <td class="fw-semibold"><?= esc($b['title']) ?></td>
-                <td><a href="product.php?slug=<?= esc($b['product_slug']) ?>" target="_blank" class="text-decoration-none"><?= esc($b['product_name']) ?></a></td>
-                <td><span class="badge text-bg-secondary-subtle"><?= (int)$b['word_count'] ?></span></td>
-                <td class="text-end"><a href="blog-post.php?id=<?= esc($b['blog_id']) ?>" target="_blank" class="btn btn-sm btn-outline-primary" data-testid="seo-ai-blog-view-<?= (int)$b['id'] ?>"><i class="bi bi-eye"></i> View</a></td>
-              </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
-      </div>
-    <?php endif; ?>
   </div>
 
-  <!-- Run-now card -->
-  <div class="card-e p-4 mb-4">
-    <h6 class="fw-bold mb-2"><i class="bi bi-magic me-1 text-primary"></i>Run full AI SEO pipeline now</h6>
-    <p class="small text-muted mb-3">Picks the next batch of products/blog posts whose content has drifted since the last run, AI-generates fresh meta + AEO Q&amp;A, regenerates the sitemap + <code>llms-full.txt</code>, pings IndexNow, <strong>and triggers the daily AI auto-blog</strong> (if it hasn't already run today).</p>
-    <form method="post" class="d-flex gap-2 align-items-end flex-wrap">
-      <input type="hidden" name="action" value="seo_run_now">
-      <div>
-        <label class="form-label small fw-semibold text-uppercase text-muted" style="letter-spacing:.12em;font-size:10px;">Batch size</label>
-        <input type="number" name="max" value="6" min="1" max="20" class="form-control" style="width:120px;" data-testid="seo-batch-size">
-      </div>
-      <button class="btn btn-primary rounded-pill px-4" type="submit" data-testid="seo-run-now"><i class="bi bi-lightning-charge-fill me-1"></i>Run now</button>
-      <small class="text-muted ms-2">Takes ~5-30 s depending on batch size.</small>
-    </form>
-
-    <?php if ($runResult): ?>
-      <?php if (!empty($runResult['error'])): ?>
-        <div class="alert alert-danger mt-3" data-testid="seo-run-result-error"><i class="bi bi-x-octagon me-2"></i>Run failed: <?= esc($runResult['error']) ?></div>
-      <?php else: ?>
-        <div class="alert alert-success mt-3 mb-0" data-testid="seo-run-result-ok">
-          <strong><i class="bi bi-check-circle-fill me-2"></i>Run completed</strong>
-          <div class="row g-2 mt-2 small">
-            <div class="col-md-3"><strong><?= (int)$runResult['items_refreshed'] ?></strong> items refreshed</div>
-            <div class="col-md-3"><strong><?= (int)$runResult['urls_indexnow'] ?></strong> URLs to IndexNow</div>
-            <div class="col-md-3"><strong><?= (int)$runResult['sitemap_urls'] ?></strong> sitemap URLs</div>
-            <div class="col-md-3"><strong><?= (int)$runResult['llms_full_lines'] ?></strong> llms-full.txt lines</div>
-          </div>
-          <?php if (!empty($runResult['auto_blog']['ok'])): ?>
-            <div class="mt-2 p-2 rounded" style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.32);">
-              <i class="bi bi-robot text-warning me-1"></i><strong>AI auto-blog:</strong> "<?= esc($runResult['auto_blog']['title']) ?>" → <a href="<?= esc($runResult['auto_blog']['url']) ?>" target="_blank">view post</a>
-            </div>
-          <?php elseif (!empty($runResult['auto_blog']['skipped'])): ?>
-            <div class="mt-2 small text-muted"><i class="bi bi-info-circle me-1"></i>AI auto-blog: <?= esc($runResult['auto_blog']['skipped']) ?> (the cap is one fresh post per calendar day)</div>
-          <?php endif; ?>
-          <details class="mt-2 small">
-            <summary class="text-muted">Endpoint responses</summary>
-            <pre class="mt-2 mb-0 small" style="white-space:pre-wrap;background:rgba(0,0,0,.04);padding:8px;border-radius:6px;"><?= esc(json_encode($runResult['indexnow_results'] ?? [], JSON_PRETTY_PRINT) . "\n" . json_encode($runResult['sitemap_pings'] ?? [], JSON_PRETTY_PRINT)) ?></pre>
-          </details>
-        </div>
-      <?php endif; ?>
-    <?php endif; ?>
-  </div>
-
-  <!-- Auto-schedule card -->
-  <div class="card-e p-4 mb-4">
-    <h6 class="fw-bold mb-2"><i class="bi bi-clock-history me-1 text-success"></i>Run automatically every day</h6>
-    <p class="small text-muted mb-3">A daily background job is already running inside this pod (kicks off at boot + every 24 h). Use the options below to wire the same pipeline into your <em>own</em> hosting after deploy.</p>
-
-    <div class="mb-3">
-      <strong class="small">Option A — Server cron (recommended)</strong>
-      <p class="small text-muted mb-1">Add this line to <code>crontab -e</code> on the server (runs 04:00 daily):</p>
-      <pre style="background:#0f172a;color:#e2e8f0;padding:10px;border-radius:6px;font-size:12px;overflow:auto;"><?= esc($cronCmd) ?></pre>
-    </div>
-
+  <!-- ============ Stats panel ============ -->
+  <div class="ai-stats mb-3" data-testid="seo-stats">
     <div>
-      <strong class="small">Option B — External HTTP cron (Cron-Job.org / EasyCron / Uptime Robot)</strong>
-      <p class="small text-muted mb-1">Point any external scheduler at this URL (the token authorises the call):</p>
-      <input class="form-control" readonly value="<?= esc($webCronUrl) ?>" style="font-family:ui-monospace,monospace;font-size:12px;" data-testid="seo-cron-url" onclick="this.select()">
+      <div class="ai-stat-label">Last run</div>
+      <div class="ai-stat-value" data-testid="seo-stat-last-run"><?= esc($ago($health['last_run_secs'])) ?></div>
+      <div class="ai-stat-sub"><?= $health['last_run_at'] ? esc(gmdate('Y-m-d H:i', strtotime((string)$health['last_run_at'])) . ' UTC') : '—' ?></div>
+    </div>
+    <div>
+      <div class="ai-stat-label">IndexNow</div>
+      <div class="ai-stat-value <?= $health['indexnow_ok'] ? 'ai-stat-value-ok' : '' ?>" data-testid="seo-stat-indexnow"><?= $health['indexnow_ok'] ? 'ok' : ($health['last_run_at'] ? 'pending' : '—') ?></div>
+      <div class="ai-stat-sub"><?= (int)$health['urls_indexnow'] ?> URLs</div>
+    </div>
+    <div>
+      <div class="ai-stat-label">LLM refresh</div>
+      <div class="ai-stat-value" data-testid="seo-stat-llm"><?= (int)$health['items_refreshed'] ?> products</div>
+      <div class="ai-stat-sub"><?= (int)$health['llm_calls'] ?> calls · <?= number_format((int)$health['llm_tokens']) ?> tokens</div>
+    </div>
+    <div>
+      <div class="ai-stat-label">Engines pinged</div>
+      <div class="ai-stat-engines">
+        <span class="e-pill"><i class="bi bi-google"></i> Google</span>
+        <span class="text-muted">·</span>
+        <span class="e-pill"><i class="bi bi-bing"></i> Bing</span>
+        <span class="text-muted">·</span>
+        <span class="e-pill">IndexNow <span class="check"><i class="bi bi-check-lg"></i></span></span>
+      </div>
+      <div class="ai-stat-sub">Bing · Yandex · Naver · Seznam</div>
+    </div>
+    <div class="ai-stat-health" data-testid="seo-stat-health">
+      <div class="ai-stat-health-dot <?= $health['healthy'] ? '' : 'bad' ?>"><i class="bi bi-<?= $health['healthy'] ? 'check-lg' : 'exclamation-triangle' ?>"></i></div>
+      <div>
+        <div class="ai-stat-health-title <?= $health['healthy'] ? '' : 'bad' ?>"><?= $health['healthy'] ? 'All systems healthy' : 'Needs attention' ?></div>
+        <div class="ai-stat-sub">Next auto-run in &lt;24h via cron</div>
+      </div>
     </div>
   </div>
 
-  <!-- Recent runs -->
-  <div class="card-e p-4">
-    <h6 class="fw-bold mb-3"><i class="bi bi-list-check me-1 text-info"></i>Recent runs</h6>
-    <?php if (!$recent): ?>
-      <p class="small text-muted mb-0">No runs yet — hit <strong>Run now</strong> above to populate.</p>
-    <?php else: ?>
-      <div class="table-responsive">
-        <table class="table table-sm align-middle small mb-0">
-          <thead><tr><th>When</th><th>Items refreshed</th><th>URLs → IndexNow</th><th>Sitemap URLs</th><th style="width:30%;">Notes</th></tr></thead>
-          <tbody>
-            <?php foreach ($recent as $r): ?>
-              <tr>
-                <td><?= esc($r['ran_at']) ?></td>
-                <td><span class="badge text-bg-primary-subtle"><?= (int)$r['items_refreshed'] ?></span></td>
-                <td><span class="badge text-bg-info-subtle"><?= (int)$r['urls_indexnow'] ?></span></td>
-                <td><span class="badge text-bg-secondary-subtle"><?= (int)$r['sitemap_urls'] ?></span></td>
-                <td class="text-muted small" style="max-width:340px;overflow:hidden;text-overflow:ellipsis;"><?= esc(mb_substr((string)$r['notes'], 0, 200)) ?></td>
-              </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
+  <?php if ($runResult || $forceBlog): ?>
+    <div class="card-e p-3 mb-3" data-testid="seo-run-feedback">
+      <?php if ($runResult && !empty($runResult['error'])): ?>
+        <div class="text-danger small"><i class="bi bi-x-octagon me-1"></i>Run failed: <?= esc($runResult['error']) ?></div>
+      <?php elseif ($runResult): ?>
+        <div class="small">
+          <strong class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Run completed</strong>
+          · <strong><?= (int)$runResult['items_refreshed'] ?></strong> items refreshed
+          · <strong><?= (int)$runResult['urls_indexnow'] ?></strong> URLs to IndexNow
+          · <strong><?= (int)($runResult['auto_blog']['published'] ?? 0) ?></strong> AI blog post(s) published
+          · <strong><?= number_format((int)($runResult['llm_tokens'] ?? 0)) ?></strong> tokens used
+        </div>
+      <?php endif; ?>
+      <?php if ($forceBlog && !empty($forceBlog['posts'])):
+            $pubd = array_filter($forceBlog['posts'], fn($p)=>!empty($p['ok']));
+      ?>
+        <div class="small mt-1"><strong class="text-success"><i class="bi bi-magic me-1"></i>AI generated <?= count($pubd) ?> new post(s).</strong> Scroll down to the live feed.</div>
+      <?php elseif ($forceBlog && !empty($forceBlog['error'])): ?>
+        <div class="small text-danger mt-1"><i class="bi bi-x-octagon me-1"></i>Generation failed: <?= esc($forceBlog['error']) ?></div>
+      <?php endif; ?>
+    </div>
+  <?php endif; ?>
+
+  <!-- ============ Live feed ============ -->
+  <div class="ai-feed-card mb-3" data-testid="seo-live-feed">
+    <div class="ai-feed-head">
+      <h6><i class="bi bi-stars"></i>Live feed · all AI-published blog posts</h6>
+      <div class="sub"><?= (int)$aiBlogCount ?> post<?= $aiBlogCount === 1 ? '' : 's' ?> auto-published · markets: US · UK · AU · CA</div>
+    </div>
+
+    <?php if (!$aiBlogs): ?>
+      <div class="text-center text-muted small py-4">
+        <i class="bi bi-robot d-block mb-2" style="font-size:30px;color:#a855f7;"></i>
+        No AI-published posts yet. Hit <strong>Run now</strong> above and the AI will write your first 5-6 articles across all 4 markets.
       </div>
-    <?php endif; ?>
+    <?php else: foreach ($aiBlogs as $b):
+      $created  = strtotime((string)$b['created_at']) ?: time();
+      $secsOld  = time() - $created;
+      $thumb    = (string)($b['product_image'] ?? '');
+      $region   = (string)($b['region'] ?? 'US');
+      $readEst  = max(3, (int)round(((int)$b['word_count']) / 220));
+    ?>
+      <div class="ai-feed-row" data-testid="seo-feed-row-<?= (int)$b['id'] ?>">
+        <?php if ($thumb): ?>
+          <img class="ai-feed-thumb" src="<?= esc($thumb) ?>" alt="<?= esc($b['product_name']) ?>" loading="lazy">
+        <?php else: ?>
+          <div class="ai-feed-thumb-fallback"><i class="bi bi-robot"></i></div>
+        <?php endif; ?>
+        <div class="ai-feed-meta">
+          <div class="ai-feed-pillline">
+            <span class="ai-pub-pill">AI · Published</span>
+            <span class="ai-region-pill" data-r="<?= esc($region) ?>"><?= esc($region) ?></span>
+            <span class="ai-feed-meta-small"><?= esc(date('M j, Y', $created)) ?> · <?= esc($ago($secsOld)) ?> · <?= (int)$readEst ?> min read</span>
+          </div>
+          <div class="ai-feed-title"><?= esc($b['title']) ?></div>
+          <div class="ai-feed-prod">
+            <i class="bi bi-box-seam"></i>
+            <a href="product.php?slug=<?= esc($b['product_slug']) ?>" target="_blank" style="color:inherit;text-decoration:none;border-bottom:1px dashed transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'"><?= esc($b['product_name']) ?></a>
+          </div>
+        </div>
+        <a class="ai-feed-open" href="blog-post.php?id=<?= esc($b['blog_id']) ?>" target="_blank" title="Open live post" data-testid="seo-feed-open-<?= (int)$b['id'] ?>"><i class="bi bi-box-arrow-up-right"></i></a>
+      </div>
+    <?php endforeach; endif; ?>
+
+    <div class="ai-feed-blog-cta">
+      <a href="blog.php" target="_blank" data-testid="seo-feed-public-blog"><i class="bi bi-journal-text"></i>Open public /blog index <i class="bi bi-box-arrow-up-right" style="font-size:11px;"></i></a>
+    </div>
   </div>
+
+  <!-- ============ Manual triggers (collapsible) ============ -->
+  <details class="card-e p-3 mb-3" data-testid="seo-manual-controls">
+    <summary class="fw-bold small text-muted" style="cursor:pointer;letter-spacing:.06em;">
+      <i class="bi bi-sliders me-1"></i>Manual controls &amp; cron wiring
+    </summary>
+    <div class="mt-3 row g-3">
+      <div class="col-md-6">
+        <h6 class="fw-bold small text-uppercase text-muted" style="letter-spacing:.12em;font-size:10.5px;">Force-generate one post now</h6>
+        <p class="small text-muted mb-2">Picks the next under-served market (US/UK/AU/CA) and publishes one AI article immediately. Use this when you don't want to wait for the daily cron.</p>
+        <form method="post" class="d-inline">
+          <input type="hidden" name="action" value="seo_auto_blog_now">
+          <button class="btn btn-sm rounded-pill px-3 fw-semibold" type="submit" style="background:#7c3aed;color:#fff;border:none;" data-testid="seo-auto-blog-now"><i class="bi bi-magic me-1"></i>Generate one now</button>
+        </form>
+        <div class="small text-muted mt-2">Today's count: <strong><?= (int)$todayCount ?></strong> / <strong><?= (int)setting_get('seo_ai_daily_post_cap', 5) ?></strong> daily cap</div>
+      </div>
+      <div class="col-md-6">
+        <h6 class="fw-bold small text-uppercase text-muted" style="letter-spacing:.12em;font-size:10.5px;">External cron URL</h6>
+        <p class="small text-muted mb-2">For shared hosting deployments — point any external scheduler at this URL (token-authenticated):</p>
+        <input class="form-control form-control-sm" readonly value="<?= esc($webCronUrl) ?>" style="font-family:ui-monospace,monospace;font-size:11.5px;" data-testid="seo-cron-url" onclick="this.select()">
+        <details class="mt-2">
+          <summary class="small text-muted" style="cursor:pointer;">Or use server cron line</summary>
+          <pre class="mt-2" style="background:#0f172a;color:#e2e8f0;padding:8px;border-radius:6px;font-size:11px;overflow:auto;"><?= esc($cronCmd) ?></pre>
+        </details>
+      </div>
+    </div>
+  </details>
 
 <?php endif; ?>
 

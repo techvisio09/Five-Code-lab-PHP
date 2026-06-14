@@ -24,6 +24,36 @@ function seo_emergent_key(): string
     return (string)(getenv('EMERGENT_LLM_KEY') ?: 'sk-emergent-8Ad362c4681F5B58f7');
 }
 
+/** Markets the AI Auto-Blogger targets. Order is rotation priority. */
+function seo_target_markets(): array
+{
+    return ['US', 'UK', 'AU', 'CA'];
+}
+
+function seo_market_label(string $code): string
+{
+    return [
+        'US' => 'United States', 'UK' => 'United Kingdom',
+        'AU' => 'Australia',     'CA' => 'Canada',
+    ][$code] ?? $code;
+}
+
+function seo_market_currency(string $code): array
+{
+    return [
+        'US' => ['symbol' => '$',  'code' => 'USD', 'spelling' => 'American English (color, organize, customize)'],
+        'UK' => ['symbol' => '£',  'code' => 'GBP', 'spelling' => 'British English (colour, organise, customise)'],
+        'AU' => ['symbol' => 'A$', 'code' => 'AUD', 'spelling' => 'Australian English (colour, organise, prioritise)'],
+        'CA' => ['symbol' => 'C$', 'code' => 'CAD', 'spelling' => 'Canadian English (colour, organize, behaviour)'],
+    ][$code] ?? ['symbol' => '$', 'code' => 'USD', 'spelling' => 'American English'];
+}
+
+/** Approximate token count for usage tracking (chars/4 heuristic). */
+function seo_estimate_tokens(string $text): int
+{
+    return (int)ceil(mb_strlen($text) / 4);
+}
+
 function seo_llm_complete(string $system, string $user, int $maxTokens = 600, string $model = 'claude-sonnet-4-6'): string
 {
     $payload = json_encode([
@@ -44,11 +74,15 @@ function seo_llm_complete(string $system, string $user, int $maxTokens = 600, st
             'Authorization: Bearer ' . seo_emergent_key(),
             'Content-Type: application/json',
         ],
-        CURLOPT_TIMEOUT        => 35,
+        CURLOPT_TIMEOUT        => 45,
     ]);
     $body = curl_exec($ch);
     $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+    // Track approximate token usage for the SEO Centre stats panel
+    $GLOBALS['__seo_llm_calls'] = ($GLOBALS['__seo_llm_calls'] ?? 0) + 1;
+    $GLOBALS['__seo_llm_tokens'] = ($GLOBALS['__seo_llm_tokens'] ?? 0)
+        + seo_estimate_tokens($system) + seo_estimate_tokens($user) + seo_estimate_tokens((string)$body);
     if ($http >= 400 || !$body) return '';
     $j = json_decode($body, true);
     return (string)($j['choices'][0]['message']['content'] ?? '');
@@ -190,11 +224,16 @@ function seo_ensure_table(): void
         product_slug VARCHAR(191) NOT NULL,
         product_name VARCHAR(255) NOT NULL,
         title VARCHAR(255) NOT NULL,
+        region VARCHAR(8) NOT NULL DEFAULT 'US',
         word_count INT DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         acknowledged_at TIMESTAMP NULL DEFAULT NULL,
-        KEY idx_created (created_at)
+        KEY idx_created (created_at),
+        KEY idx_region (region)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    // Safety: backfill region column on existing installs (idempotent)
+    try { db()->exec("ALTER TABLE seo_ai_blog_log ADD COLUMN IF NOT EXISTS region VARCHAR(8) NOT NULL DEFAULT 'US' AFTER title"); } catch (Throwable $e) {}
+    try { db()->exec("ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS region VARCHAR(8) NOT NULL DEFAULT '' AFTER image"); } catch (Throwable $e) {}
 }
 
 function seo_get_meta(string $kind, string $refId): array
@@ -370,22 +409,30 @@ function seo_run_daily(int $maxItems = 8): array
     $notes[] = 'IndexNow endpoints: ' . json_encode($in['endpoints'] ?? []);
     $notes[] = 'Sitemap pings: ' . json_encode($pings);
 
-    // 6. AI auto-blog: one fresh blog post per calendar day, no manual work
+    // 6. AI auto-blog: 5-6 fresh posts per day, multi-market (US/UK/AU/CA)
     $autoBlog = seo_ai_run_daily_blog();
-    if (!empty($autoBlog['ok'])) {
-        $indexnowUrls[] = $autoBlog['url'];
-        $notes[] = 'AI auto-published blog: "' . $autoBlog['title'] . '" → /blog-post.php?id=' . $autoBlog['blog_id'];
-        // Submit the brand-new post immediately so search engines see it today
-        seo_indexnow_submit([$autoBlog['url']]);
-        // Regenerate the sitemap now that there's a new post on the site
-        $sitemapUrls = seo_generate_sitemap();
+    if (!empty($autoBlog['posts'])) {
+        foreach ($autoBlog['posts'] as $p) {
+            if (!empty($p['ok']) && !empty($p['url'])) {
+                $indexnowUrls[] = $p['url'];
+                $notes[] = 'AI [' . ($p['region'] ?? '?') . '] published: "' . $p['title'] . '" → /blog-post.php?id=' . $p['blog_id'];
+            } elseif (!empty($p['error'])) {
+                $notes[] = 'AI auto-blog error [' . ($p['region'] ?? '?') . ']: ' . $p['error'];
+            }
+        }
+        $newUrls = array_values(array_filter(array_map(fn($x) => $x['url'] ?? null, $autoBlog['posts'])));
+        if ($newUrls) {
+            seo_indexnow_submit($newUrls);
+            $sitemapUrls = seo_generate_sitemap();
+        }
     } elseif (!empty($autoBlog['skipped'])) {
         $notes[] = 'AI auto-blog skipped: ' . $autoBlog['skipped'];
-    } elseif (!empty($autoBlog['error'])) {
-        $notes[] = 'AI auto-blog error: ' . $autoBlog['error'];
     }
 
     // 7. Log the run
+    $llmCalls  = (int)($GLOBALS['__seo_llm_calls']  ?? 0);
+    $llmTokens = (int)($GLOBALS['__seo_llm_tokens'] ?? 0);
+    $notes[] = 'LLM: ' . $llmCalls . ' calls · ~' . $llmTokens . ' tokens';
     db()->prepare('INSERT INTO seo_run_log (items_refreshed, urls_indexnow, sitemap_urls, notes) VALUES (?,?,?,?)')
         ->execute([$refreshed, count($indexnowUrls), $sitemapUrls, implode("\n", $notes)]);
 
@@ -397,6 +444,8 @@ function seo_run_daily(int $maxItems = 8): array
         'indexnow_results' => $in,
         'sitemap_pings'    => $pings,
         'auto_blog'        => $autoBlog,
+        'llm_calls'        => (int)($GLOBALS['__seo_llm_calls']  ?? 0),
+        'llm_tokens'       => (int)($GLOBALS['__seo_llm_tokens'] ?? 0),
         'notes'            => $notes,
     ];
 }
@@ -411,51 +460,77 @@ function seo_recent_runs(int $limit = 10): array
 }
 
 // --------------------------------------------------------------------
-//  AI Auto-Blogger — picks one product per day and publishes a full
-//  blog post about it.  Enforces a one-per-calendar-day cap.
+//  AI Auto-Blogger — picks featured products and publishes editorial-
+//  style blog posts about them, one per active market per day, fully
+//  localized (spelling + currency + tone).  Hard cap = 6 posts/day.
 // --------------------------------------------------------------------
-function seo_ai_blog_already_today(): bool
+function seo_ai_blog_today_count(): int
 {
     seo_ensure_table();
-    $s = db()->query("SELECT COUNT(*) FROM seo_ai_blog_log WHERE DATE(created_at) = CURDATE()");
-    return ((int)$s->fetchColumn()) > 0;
+    return (int)db()->query("SELECT COUNT(*) FROM seo_ai_blog_log WHERE DATE(created_at) = CURDATE()")->fetchColumn();
 }
 
-function seo_ai_pick_blog_product(): array
+function seo_ai_blog_today_count_by_market(string $region): int
 {
-    // Pick a product the AI hasn't covered yet (preferred), else the
-    // least-recently AI-covered one.  Skips products the AI has already
-    // written a blog about in the last 90 days to keep content fresh.
-    $row = db()->query(
+    seo_ensure_table();
+    $s = db()->prepare("SELECT COUNT(*) FROM seo_ai_blog_log WHERE DATE(created_at) = CURDATE() AND region = ?");
+    $s->execute([$region]);
+    return (int)$s->fetchColumn();
+}
+
+function seo_ai_pick_blog_product_for_market(string $region): array
+{
+    // Pick the next product that hasn't had an AI blog post in this market in
+    // the last 90 days.  Falls back to the least-recently-covered one to keep
+    // the rotation healthy long-term.
+    $stmt = db()->prepare(
         "SELECT p.* FROM products p
          WHERE " . active_regions_sql_in('p.region') . "
            AND p.slug NOT IN (
              SELECT product_slug FROM seo_ai_blog_log
-             WHERE created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+             WHERE region = ?
+               AND created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
            )
          ORDER BY p.reviews DESC, RAND()
          LIMIT 1"
-    )->fetch();
+    );
+    $stmt->execute([$region]);
+    $row = $stmt->fetch();
     if ($row) return $row;
-    // Fallback — every product has had a recent AI post, so just rotate the
-    // least-recently-covered one back in.
-    $row = db()->query(
+    // Fallback — rotate the least recently used product in this market
+    $stmt = db()->prepare(
         "SELECT p.* FROM products p
-         LEFT JOIN seo_ai_blog_log b ON b.product_slug = p.slug
+         LEFT JOIN seo_ai_blog_log b ON b.product_slug = p.slug AND b.region = ?
          WHERE " . active_regions_sql_in('p.region') . "
          ORDER BY b.created_at ASC, RAND()
          LIMIT 1"
-    )->fetch();
+    );
+    $stmt->execute([$region]);
+    $row = $stmt->fetch();
     return $row ?: [];
 }
 
-function seo_ai_generate_blog_body(array $product): array
+/** Keep backwards-compat with the older single-market picker used by the
+ *  "Generate one now" button.  Picks any market that hasn't filled today. */
+function seo_ai_pick_blog_product(): array
 {
-    $system = 'You are a senior SEO content writer for an authorised software reseller. '
-            . 'Write a 600-900 word, HTML-formatted blog post that BUYERS would actually find useful. '
+    foreach (seo_target_markets() as $m) {
+        $p = seo_ai_pick_blog_product_for_market($m);
+        if ($p) { $p['__target_region'] = $m; return $p; }
+    }
+    return [];
+}
+
+function seo_ai_generate_blog_body(array $product, string $region = 'US'): array
+{
+    $cur = seo_market_currency($region);
+    $marketLabel = seo_market_label($region);
+    $system = 'You are a senior SEO content writer for an authorised software reseller serving the ' . $marketLabel . ' market. '
+            . 'Write a 600-900 word, HTML-formatted blog post that BUYERS in ' . $marketLabel . ' would actually find useful. '
+            . 'Use ' . $cur['spelling'] . ' for ALL spelling. Use the local currency symbol "' . $cur['symbol'] . '" when mentioning price. '
             . 'It must read as authentic editorial — no marketing fluff, no over-promising. '
             . 'Output STRICT JSON only (no code fence) with keys: '
-            . 'title (≤ 70 chars, compelling, NOT clickbait), '
+            . 'title (≤ 70 chars, compelling, NOT clickbait, can naturally hint at the market when relevant — e.g. "for ' . $marketLabel . ' Buyers"), '
             . 'lead (one-sentence dek, ≤ 160 chars), '
             . 'html (the article body — use <h2>, <h3>, <p>, <ul><li>, <strong>; '
             . 'open with a 1-sentence <p class="lead">…</p> dek; include 2-3 H2 sections; end with a clear '
@@ -465,31 +540,31 @@ function seo_ai_generate_blog_body(array $product): array
              . "\n- Name: " . $product['name']
              . "\n- Platform: " . ($product['platform'] ?? 'Windows')
              . "\n- Category: " . ($product['category'] ?? 'Software')
-             . "\n- Price: $" . $product['price']
+             . "\n- Price: " . $cur['symbol'] . $product['price'] . ' ' . $cur['code']
              . "\n- License type: " . ($product['license_type'] ?? 'lifetime')
              . "\n- Brand: " . ($product['brand'] ?? '')
              . "\n- Reseller: " . SITE_BRAND
-             . "\n\nWrite an editorial-style guide that genuinely helps a buyer decide if this product is right for them. "
-             . "You can cover topics like: who it is for, what is genuinely new/notable, common misconceptions, "
-             . "buying tips, comparison with subscription alternatives, or installation/activation pointers — pick "
-             . "whichever 2-3 angles fit this product best.";
+             . "\n- Target market: " . $marketLabel . ' (' . $region . ')'
+             . "\n\nWrite an editorial-style guide that genuinely helps a ' . $marketLabel . ' buyer decide if this product is right for them. "
+             . 'You can cover topics like: who it is for, what is genuinely new/notable, common misconceptions, '
+             . 'buying tips, comparison with subscription alternatives, installation/activation pointers — pick whichever 2-3 angles fit this product best. '
+             . 'Reference the local market naturally (e.g. mention GST for AU, VAT for UK, sales tax for US, HST/PST for CA) where relevant.';
     $raw = seo_llm_complete($system, $userMsg, 2000);
     $j = json_decode(_seo_strip_codefence($raw), true);
     return is_array($j) ? $j : [];
 }
 
-function seo_ai_publish_blog_for_product(array $product): array
+function seo_ai_publish_blog_for_product(array $product, string $region = 'US'): array
 {
     seo_ensure_table();
     if (empty($product['slug']) || empty($product['name'])) {
         return ['ok' => false, 'error' => 'invalid product'];
     }
-    $body = seo_ai_generate_blog_body($product);
+    $body = seo_ai_generate_blog_body($product, $region);
     if (empty($body['title']) || empty($body['html'])) {
         return ['ok' => false, 'error' => 'AI returned empty body'];
     }
 
-    // Allocate the next numeric blog id (existing ids are numeric strings).
     $nextId = (int)db()->query("SELECT IFNULL(MAX(CAST(id AS UNSIGNED)), 0) + 1 FROM blog_posts")->fetchColumn();
     if ($nextId < 1) $nextId = 1;
 
@@ -499,42 +574,123 @@ function seo_ai_publish_blog_for_product(array $product): array
     $date     = date('M j, Y');
     $image    = (string)($product['image'] ?? '');
 
-    db()->prepare('INSERT INTO blog_posts (id, title, date, read_time, image, content) VALUES (?,?,?,?,?,?)')
-        ->execute([(string)$nextId, $title, $date, $readTime, $image, $html]);
+    // Insert blog with region; gracefully handle older schemas missing the column
+    try {
+        db()->prepare('INSERT INTO blog_posts (id, title, date, read_time, image, region, content) VALUES (?,?,?,?,?,?,?)')
+            ->execute([(string)$nextId, $title, $date, $readTime, $image, $region, $html]);
+    } catch (Throwable $e) {
+        db()->prepare('INSERT INTO blog_posts (id, title, date, read_time, image, content) VALUES (?,?,?,?,?,?)')
+            ->execute([(string)$nextId, $title, $date, $readTime, $image, $html]);
+    }
 
     $wordCount = max(1, str_word_count(strip_tags($html)));
-    db()->prepare('INSERT INTO seo_ai_blog_log (blog_id, product_slug, product_name, title, word_count) VALUES (?,?,?,?,?)')
-        ->execute([(string)$nextId, (string)$product['slug'], (string)$product['name'], $title, $wordCount]);
+    db()->prepare('INSERT INTO seo_ai_blog_log (blog_id, product_slug, product_name, title, region, word_count) VALUES (?,?,?,?,?,?)')
+        ->execute([(string)$nextId, (string)$product['slug'], (string)$product['name'], $title, $region, $wordCount]);
 
     return [
         'ok'          => true,
         'blog_id'     => (string)$nextId,
         'title'       => $title,
         'word_count'  => $wordCount,
+        'region'      => $region,
         'product'     => $product['name'],
         'url'         => rtrim(site_url(), '/') . '/blog-post.php?id=' . $nextId,
     ];
 }
 
+/** Daily auto-blogger — produces up to N posts/day, distributed across all
+ *  target markets.  Default cap is 5 posts/day (configurable via settings
+ *  `seo_ai_daily_post_cap`, hard ceiling of 6).
+ */
 function seo_ai_run_daily_blog(): array
 {
-    if (seo_ai_blog_already_today()) {
-        return ['ok' => false, 'skipped' => 'already published today'];
+    seo_ensure_table();
+    $cap = (int)setting_get('seo_ai_daily_post_cap', 5);
+    if ($cap < 1) $cap = 5; if ($cap > 6) $cap = 6;
+
+    $existing = seo_ai_blog_today_count();
+    if ($existing >= $cap) {
+        return ['ok' => false, 'skipped' => 'daily cap reached (' . $existing . '/' . $cap . ')', 'posts' => []];
     }
-    $product = seo_ai_pick_blog_product();
-    if (!$product) {
-        return ['ok' => false, 'error' => 'no eligible product'];
+
+    $posts = [];
+    $markets = seo_target_markets(); // [US, UK, AU, CA]
+    // Pass 1 — make sure every market has at least one post today, in order.
+    foreach ($markets as $region) {
+        if (count($posts) + $existing >= $cap) break;
+        if (seo_ai_blog_today_count_by_market($region) > 0) continue; // market already covered today
+        $product = seo_ai_pick_blog_product_for_market($region);
+        if (!$product) { $posts[] = ['ok' => false, 'region' => $region, 'error' => 'no eligible product']; continue; }
+        try {
+            $posts[] = seo_ai_publish_blog_for_product($product, $region);
+        } catch (Throwable $e) {
+            $posts[] = ['ok' => false, 'region' => $region, 'error' => $e->getMessage()];
+        }
     }
-    return seo_ai_publish_blog_for_product($product);
+    // Pass 2 — fill the remaining slots by rotating markets (extra coverage)
+    $idx = 0;
+    while (count($posts) + $existing < $cap && $idx < 20) {
+        $region = $markets[$idx % count($markets)];
+        $idx++;
+        $product = seo_ai_pick_blog_product_for_market($region);
+        if (!$product) continue;
+        try {
+            $posts[] = seo_ai_publish_blog_for_product($product, $region);
+        } catch (Throwable $e) {
+            $posts[] = ['ok' => false, 'region' => $region, 'error' => $e->getMessage()];
+        }
+    }
+
+    $okCount = count(array_filter($posts, fn($p) => !empty($p['ok'])));
+    return ['ok' => $okCount > 0, 'posts' => $posts, 'published' => $okCount, 'cap' => $cap];
 }
 
 function seo_ai_recent_blog_posts(int $limit = 12): array
 {
     seo_ensure_table();
-    $s = db()->prepare('SELECT * FROM seo_ai_blog_log ORDER BY id DESC LIMIT ?');
+    $s = db()->prepare(
+        'SELECT b.*, p.image AS product_image, p.platform AS product_platform
+         FROM seo_ai_blog_log b
+         LEFT JOIN products p ON p.slug = b.product_slug
+         ORDER BY b.id DESC LIMIT ?'
+    );
     $s->bindValue(1, $limit, PDO::PARAM_INT);
     $s->execute();
     return $s->fetchAll() ?: [];
+}
+
+/** Latest health snapshot — used by the AI SEO Centre stats panel. */
+function seo_ai_health_snapshot(): array
+{
+    seo_ensure_table();
+    $last = db()->query('SELECT * FROM seo_run_log ORDER BY id DESC LIMIT 1')->fetch();
+    $ranAt = $last['ran_at'] ?? null;
+    $secsAgo = $ranAt ? (time() - strtotime($ranAt)) : null;
+    // Parse LLM telemetry from notes (best-effort)
+    $llmCalls = 0; $llmTokens = 0;
+    if ($last && preg_match('/LLM:\s*(\d+)\s*calls.*?~?(\d+)\s*tokens/i', (string)$last['notes'], $m)) {
+        $llmCalls = (int)$m[1]; $llmTokens = (int)$m[2];
+    }
+    // IndexNow status from last run notes (look for endpoint codes — 200/202 OK)
+    $indexnowOk = false;
+    if ($last) {
+        $n = (string)$last['notes'];
+        // Match any successful HTTP code (2xx) returned from IndexNow endpoints
+        if (preg_match('/indexnow.*?":2\d\d/i', $n) || preg_match('/"indexnow_endpoints".*?2\d\d/i', $n)) {
+            $indexnowOk = true;
+        }
+    }
+    return [
+        'last_run_at'     => $ranAt,
+        'last_run_secs'   => $secsAgo,
+        'urls_indexnow'   => $last ? (int)$last['urls_indexnow'] : 0,
+        'sitemap_urls'    => $last ? (int)$last['sitemap_urls'] : 0,
+        'items_refreshed' => $last ? (int)$last['items_refreshed'] : 0,
+        'indexnow_ok'     => $indexnowOk,
+        'llm_calls'       => $llmCalls,
+        'llm_tokens'      => $llmTokens,
+        'healthy'         => (bool)($last && $secsAgo !== null && $secsAgo < 60 * 60 * 30), // ≤ 30 hours
+    ];
 }
 
 function seo_ai_pending_alert_post(): ?array

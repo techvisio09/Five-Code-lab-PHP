@@ -1,0 +1,86 @@
+{
+  "summary": "Completed full end-to-end test of the redesigned AI SEO Centre + AI Auto-Blogger across 4 markets (US/UK/AU/CA). Verified admin auth, SEO admin UI (hero + 5-column stats + 7-row live feed + manual controls), all 7 AI-published posts (ids 51-57), public blog index, sitemap, llms-full.txt, market-localized currency/spelling, and cross-tab admin navigation. All requested data-testid hooks resolve correctly. No PHP errors observed. Conditional UI (seo-ai-blog-alert / adm-ai-blog-toast) correctly hidden because all AI posts are already acknowledged — this is expected per spec.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "public_endpoints_http_200": [
+      "/", "/blog.php", "/sitemap.xml", "/llms-full.txt",
+      "/blog-post.php?id=51", "/blog-post.php?id=52", "/blog-post.php?id=53",
+      "/blog-post.php?id=54", "/blog-post.php?id=55", "/blog-post.php?id=56",
+      "/blog-post.php?id=57"
+    ],
+    "sitemap_xml_contains_posts_51_to_57": true,
+    "blog_index_lists_all_7_ai_posts": true,
+    "llms_full_txt": {
+      "branding_fivecodelab_present": true,
+      "faqs_section_present": true,
+      "section_heading": "## Frequently Asked Questions (AI-curated)"
+    },
+    "market_localization": {
+      "uk_post_id_53": {
+        "pound_currency_present": true,
+        "british_spelling_licence_count": 10,
+        "title": "Microsoft Office Home & Business 2019 for Mac: Is It Worth £124.99 for UK Buyers?"
+      },
+      "au_post_id_55": {
+        "australia_australian_mentions": 13,
+        "title": "Microsoft Office 2019 for Mac: Is the Lifetime Licence Worth It for Australian Buyers?"
+      },
+      "ca_post_id_57": {
+        "canada_canadian_mentions": 16,
+        "title": "Microsoft Office 2019 for Mac: Is the Lifetime Licence Worth It for Canada Buyers?"
+      }
+    },
+    "admin_seo_centre_ui": {
+      "login_success": true,
+      "adm_nav_seo_present": true,
+      "seo_hero_present": true,
+      "hero_tagline_contains_us_uk_au_ca": true,
+      "seo_run_now_present": true,
+      "seo_stats_present": true,
+      "seo_stat_last_run": "5m ago / 2026-06-14 11:30 UTC",
+      "seo_stat_indexnow": "ok (9 URLs)",
+      "seo_stat_llm": "6 products / 6 calls / 3,050 tokens",
+      "seo_stat_engines": "Google · Bing · IndexNow + Bing · Yandex · Naver · Seznam",
+      "seo_stat_health": "All systems healthy · Next auto-run in <24h via cron",
+      "seo_live_feed_present": true,
+      "feed_rows_count": 7,
+      "feed_open_buttons_count": 7,
+      "distinct_regions_in_pills": ["AU", "CA", "UK", "US"],
+      "seo_feed_public_blog_present": true,
+      "seo_feed_public_blog_href": "blog.php",
+      "first_open_btn": "blog-post.php?id=57, target=_blank",
+      "seo_manual_controls_present": true,
+      "seo_manual_controls_tag": "DETAILS (expandable)",
+      "seo_auto_blog_now_present": true,
+      "seo_cron_url_present": true,
+      "seo_cron_url_value": "https://side-showcase.preview.emergentagent.com/cron/seo-daily.php?token=53042aa64c8ae134",
+      "seo_ai_blog_alert_present": false,
+      "seo_ai_blog_ack_present": false,
+      "note_alert_ack_absent": "Expected — all 7 AI posts already acknowledged in DB (acknowledged_at IS NOT NULL). Alert/ack/toast are conditional and only show when an unread AI post exists."
+    },
+    "cross_tab_navigation_http_200": ["?tab=dashboard", "?tab=products", "?tab=orders", "?tab=seo"],
+    "adm_ai_blog_toast_on_non_seo_tabs": "not present (expected — no unread AI posts)",
+    "logout_relogin_flow": "PASS"
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Optional polish: when the AI alert/toast are inactive there is no visual hint that the system is in 'all acknowledged' state — a small subtitle like 'No new AI posts pending review' in the live feed header would close the loop for admins.",
+    "Cron URL token (seo-cron-url) is rendered in plain text — admins should be reminded to keep it secret; consider a copy-to-clipboard helper and a 'rotate token' action for security hygiene."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "services@fivecodelabsoftware.com / Fivecode@2026!",
+  "seed_data_creation": "None — used the 7 pre-seeded AI posts (ids 51-57) as instructed; no Run Now triggered (daily cap respected).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "AI Auto-Blogger pipeline is fully green. 7 posts (ids 51-57) cover all 4 markets (US/UK/AU/CA). The seo-ai-blog-alert / adm-ai-blog-toast / seo-ai-blog-ack hooks are conditional — they render only when seo_ai_blog_log has rows with acknowledged_at IS NULL. To re-test the alert flow, set one row's acknowledged_at to NULL in the DB and reload ?tab=seo. The cron URL contains the live token; do NOT log it externally."
+}
