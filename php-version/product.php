@@ -206,7 +206,7 @@ include __DIR__ . '/includes/header.php';
     <div class="col-lg-7">
       <?php $stockN = available_keys_count($product['slug']); ?>
       <div class="d-flex gap-2 flex-wrap mb-2">
-        <span class="badge os-badge"><img src="assets/images/os/<?= $product['platform'] === 'Mac' ? 'macos' : 'windows' ?>.svg" alt="<?= esc($product['platform']) ?>" class="os-icon me-1"><?= esc($product['platform']) ?></span>
+        <span class="badge os-badge"><img src="assets/images/os/<?= $product['platform'] === 'Mac' ? 'macos' : 'windows' ?>.svg" alt="<?= $product['platform'] === 'Mac' ? 'Apple macOS' : 'Microsoft Windows' ?> compatible" width="16" height="16" loading="lazy" class="os-icon me-1"><?= esc($product['platform']) ?></span>
         <?php if ($stockN > 0): ?>
           <span class="badge text-bg-success" data-testid="stock-pill-in-<?= esc($product['slug']) ?>"><i class="bi bi-check-circle me-1"></i>In Stock</span>
         <?php else: ?>

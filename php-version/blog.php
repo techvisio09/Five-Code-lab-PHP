@@ -58,7 +58,13 @@ include __DIR__ . '/includes/header.php';
       <?php foreach ($posts as $b): ?>
         <div class="col-lg-4 col-md-6">
           <a href="blog-post.php?id=<?= esc($b['id']) ?>" class="card h-100 text-decoration-none" data-testid="blog-card-<?= (int)$b['id'] ?>">
-            <img src="<?= esc($b['image']) ?>" class="card-img-top object-fit-cover" style="height:190px;" alt="<?= esc($b['title']) ?>" loading="lazy">
+            <img src="<?= esc($b['image']) ?>"
+                 class="card-img-top object-fit-cover"
+                 style="height:190px;"
+                 alt="<?= esc($b['title']) ?> — <?= esc(SITE_BRAND) ?> software guide cover image"
+                 title="<?= esc($b['title']) ?>"
+                 width="400" height="190"
+                 loading="lazy" decoding="async">
             <div class="card-body">
               <small class="text-secondary"><i class="bi bi-calendar3 me-1"></i><?= esc($b['date']) ?> · <?= esc($b['read_time']) ?></small>
               <h5 class="fw-bold mt-2 text-body h6"><?= esc($b['title']) ?></h5>

@@ -51,7 +51,6 @@
         <ul class="footer-contact list-unstyled mb-3">
           <li><span class="footer-contact-icon"><i class="bi bi-telephone-fill"></i></span><a href="tel:<?= esc($brandPhone) ?>" itemprop="telephone"><?= esc($brandPhone) ?></a></li>
           <li><span class="footer-contact-icon"><i class="bi bi-envelope-fill"></i></span><a href="mailto:<?= esc($brandEmail) ?>" itemprop="email"><?= esc($brandEmail) ?></a></li>
-          <li><span class="footer-contact-icon"><i class="bi bi-envelope-paper"></i></span><a href="<?= defined('SITE_WEBMAIL') ? esc(SITE_WEBMAIL) : '#' ?>" target="_blank" rel="noopener" data-testid="footer-webmail-link">Webmail Login <i class="bi bi-box-arrow-up-right small ms-1"></i></a></li>
           <li itemprop="address" itemscope itemtype="https://schema.org/PostalAddress"><span class="footer-contact-icon"><i class="bi bi-geo-alt-fill"></i></span><span itemprop="streetAddress"><?= esc($brandAddress) ?></span></li>
           <li><span class="footer-contact-icon"><i class="bi bi-clock-fill"></i></span><?= SITE_HOURS ?></li>
         </ul>
@@ -99,7 +98,6 @@
           <li><a href="page.php?slug=faqs">FAQs</a></li>
           <li><a href="contact.php">Contact Us</a></li>
           <li><a href="returns.php">Returns &amp; Refunds</a></li>
-          <li><a href="<?= defined('SITE_WEBMAIL') ? esc(SITE_WEBMAIL) : '#' ?>" target="_blank" rel="noopener" data-testid="footer-support-webmail-link"><i class="bi bi-envelope-paper me-1"></i>Webmail</a></li>
         </ul>
       </div>
 

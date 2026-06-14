@@ -48,6 +48,12 @@ Rebrand the existing storefront from "Maventech Software" to **Fivecodelab Softw
   - **Accessibility**: `role="contentinfo"` on footer, ARIA labels on social/map/legal nav, `visually-hidden` label on newsletter input.
 - **Admin credentials**: `services@fivecodelabsoftware.com` / `Fivecode@2026!`
 
+## Latest additions (P3 cleanup)
+- **Webmail link removed from footer** (Brand & Support columns). Top trust-bar Webmail link kept.
+- **`merchant-feed.xml` refreshed** — 37 products now exported with rich Google Merchant + Bing Shopping fields: `g:mobile_link`, `g:mpn`, `g:product_type`, `g:item_group_id`, `g:product_highlight` (×4), `g:additional_image_link`, multi-country `g:shipping` (US/GB/CA/AU), `g:max_handling_time`, `g:min_handling_time`, `g:tax`, 5× `g:custom_label_*` (Digital, brand, platform, sale state, category), `g:product_review_count` + `g:product_review_average`, `g:sale_price` + `g:sale_price_effective_date`.
+- **Per-post `Article` JSON-LD** on `blog-post.php` — drives Google Top Stories eligibility + clean AI summarisation: `mainEntityOfPage`, `headline`, `wordCount` (auto-computed), `timeRequired` (auto-computed reading minutes), `articleSection`, `keywords`, `inLanguage`, `isAccessibleForFree`, `author`/`publisher` Organization with 512×512 `ImageObject` logo, `BreadcrumbList`, plus `itemscope` microdata on the `<article>` element.
+- **Image alt-text audit completed** — every product card already uses SEO-rich `product_img_alt()` (name + platform + license type + discount + brand). Enriched: blog cards (`index.php` + `blog.php`) now have descriptive titles + `loading="lazy"` + `decoding="async"` + explicit width/height for CLS, OS badge on product page uses "Microsoft Windows compatible" / "Apple macOS compatible" alts, blog hero image has descriptive alt + `fetchpriority="high"`. Only remaining empty `alt=""` is the decorative OS chip icon next to its visible text label (correct per ARIA).
+
 ## Test Status
 - Smoke test screenshots: home + footer band — PayPal theme is rendering correctly
 - Admin login: verified via curl (200, dashboard title shows "Admin · Dashboard · Fivecodelab Software")
