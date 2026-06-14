@@ -33,6 +33,12 @@ foreach ($catSlugs as $cs) {
     $urls[] = [$base . '/category.php?slug=' . $cs, $today, 'weekly', '0.8'];
 }
 
+// Brand pages (one canonical authority page per manufacturer)
+foreach (db()->query("SELECT DISTINCT brand FROM products WHERE brand <> '' AND " . active_regions_sql_in('region')) as $r) {
+    $slug = strtolower(str_replace(' ', '-', (string)$r['brand']));
+    $urls[] = [$base . '/brand.php?slug=' . $slug, $today, 'weekly', '0.8'];
+}
+
 // Products
 foreach (db()->query('SELECT slug FROM products WHERE ' . active_regions_sql_in('region')) as $r) {
     $urls[] = [$base . '/product.php?slug=' . $r['slug'], $today, 'weekly', '0.8'];

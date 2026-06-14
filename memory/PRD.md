@@ -48,7 +48,30 @@ Rebrand the existing storefront from "Maventech Software" to **Fivecodelab Softw
   - **Accessibility**: `role="contentinfo"` on footer, ARIA labels on social/map/legal nav, `visually-hidden` label on newsletter input.
 - **Admin credentials**: `services@fivecodelabsoftware.com` / `Fivecode@2026!`
 
-## Latest enhancements (2026-06-14 evening)
+## Latest enhancements (2026-06-14 night)
+
+### Comprehensive admin "All AI Posts" view with pagination
+- `/admin.php?tab=seo` Live Feed now shows **every AI-published post** in a paginated table (25 per page), newest first, with full pagination controls (prev/next + numbered page chips with windowed `…` collapsing).
+- Heading rewritten to "All AI-published blog posts · newest first · click any to view live".
+- Pagination respects the region filter — `?tab=seo&feed_region=UK&feed_page=2` shows page 2 of UK-only posts.
+- Range indicator at the bottom: "Showing 26-35 of 35 AI-published posts" with full filter context.
+
+### Public Brand Profile pages
+- New `/brand.php?slug={microsoft|bitdefender|mcafee}` — auto-resolves slug to canonical brand name (case-insensitive, hyphen-to-space match against `products.brand`). 404 for unknown brands.
+- Hero shows brand name + product count + article count + 4-market badge.
+- **Articles section** lists every AI-published guide whose product belongs to that brand (up to 50, with thumbnail, region pill, date, read-time, product caption, click-to-view).
+- Empty-state placeholder (`brand-articles-section-empty`) when no AI articles yet.
+- Products grid below using the existing `render_product_card()` helper.
+- Embedded `Brand` JSON-LD + `BreadcrumbList` for AI Knowledge Panel eligibility.
+- Product breadcrumb on every `/product.php` page now includes a clickable brand link → `brand.php?slug=...` (testid `product-brand-link`).
+- Brand pages emitted in `/sitemap.xml` (priority 0.8) — both `sitemap-xml.php` (router-served) and `seo_ai.php::seo_generate_sitemap()` (cron-generated) include them.
+
+### Budget alert removed (user request)
+- Removed the red "LLM budget exceeded" card from the SEO tab.
+- Removed the global red toast from every admin page.
+- `seo_llm_complete()` still detects HTTP-400 "budget" responses but exits the retry loop silently (no `setting_set`, no UI signalling).
+
+## Earlier 2026-06-14 enhancements
 
 ### Full automation · 6 posts × 4 markets = 24 posts/day
 - `seo_ai_run_daily_blog()` rewritten as **per-market round-robin** publisher. Default cap: 6 posts per market per calendar day (configurable via `seo_ai_per_market_post_cap` setting, range 1-10). Hard guarantee that every day's 24 posts cover 24 different products (SQL-level NOT IN + duplicate-guard before insert).
