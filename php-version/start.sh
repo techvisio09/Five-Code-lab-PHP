@@ -58,5 +58,18 @@ if [ -f "$ENVF" ]; then
   done
 fi
 
-# 4) Serve the PHP store on port 3000
+# 4) Background daily AI SEO runner — runs the full pipeline (AI meta refresh,
+#    sitemap regeneration, IndexNow pings, and the once-a-day AI auto-blogger)
+#    once at boot (after a 90-second warmup) and then every 24 hours.
+#    The PHP function is idempotent + has its own per-day caps, so re-running
+#    is always safe.
+(
+  sleep 90
+  while true; do
+    /usr/bin/php /app/php-version/cron/seo-daily.php >> /var/log/seo-daily.log 2>&1
+    sleep 86400
+  done
+) &
+
+# 5) Serve the PHP store on port 3000
 exec env PHP_CLI_SERVER_WORKERS=8 php -S 0.0.0.0:3000 -t /app/php-version /app/php-version/router.php

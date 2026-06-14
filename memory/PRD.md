@@ -56,6 +56,26 @@ Rebrand the existing storefront from "Maventech Software" to **Fivecodelab Softw
 - **Review URL bug fix** — `/review.php` now parses both proper (`?t=TOK&rating=N`) and legacy (`?t=TOK?rating=N`) URLs. DB swept for stale templates; source-code audit shows zero remaining bad patterns.
 - **Admin "Email Link Sanity Test" tool** — collapsible card at the top of the Reviews tab in `/admin.php` lets admins paste any review URL and instantly see (a) whether it parses, (b) the resolved token, (c) the pre-selected star rating, (d) which `customer_reviews` row it lands on, (e) whether the legacy-URL recovery path was triggered, plus errors/warnings. One-click "Use real sample URL" button auto-loads a real DB token for a green-path test. Helper lives at `includes/functions.php::parse_review_url_for_admin()` and runs the exact same parser as `review.php`, so the test result is a 100% faithful preview of production behaviour.
 
+## AI SEO Centre + Auto-Blogger (2026-06-14)
+- **AI SEO Centre admin panel** (`/admin.php?tab=seo`) — added to a new **Growth** sidebar group, powered by Claude Sonnet 4.6 via the Emergent Universal Key.
+  - Coverage KPIs: product %, blog %, total AI-published posts, last run.
+  - One-click "Run full pipeline" button (AI meta refresh + sitemap + llms-full.txt + IndexNow/Bing/Yandex pings).
+  - Per-host IndexNow key auto-generated + `<key>.txt` published in webroot.
+  - Auto-schedule card: server cron command + tokenised HTTP cron URL for external schedulers.
+  - Recent runs history table.
+- **AI Auto-Blogger (hands-free, one post per calendar day)** — new flagship feature:
+  - Picks the most relevant un-covered featured product (skips anything blogged in last 90 days).
+  - Claude Sonnet 4.6 writes a 600-900 word editorial-style guide (lead dek + 2-3 H2 sections + bullet list + product CTA), titled by the AI.
+  - Auto-inserted into `blog_posts` with the next available numeric id, immediately live at `/blog-post.php?id=N` with full Article JSON-LD.
+  - Daily cap enforced via `seo_ai_blog_log` table (`WHERE DATE(created_at) = CURDATE()`).
+  - Big yellow "AI just published" alert in the SEO Centre with View / Got it, dismiss buttons.
+  - Toast notification pops on **every admin page** until acknowledged.
+  - Red badge on the sidebar "AI SEO Centre" link with unread count.
+  - Manual override button "Generate one now" (bypasses the per-day cap if needed).
+  - Recent AI-written posts history table.
+  - New post URL submitted to IndexNow immediately + sitemap regenerated on the fly.
+- **Daily background runner registered in `start.sh`** — kicks off 90s after boot then every 24h. Idempotent (content-hash drift detection + per-day caps), so safe to re-run.
+
 ## Test Status
 - Smoke test screenshots: home + footer band — PayPal theme is rendering correctly
 - Admin login: verified via curl (200, dashboard title shows "Admin · Dashboard · Fivecodelab Software")

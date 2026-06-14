@@ -38,6 +38,7 @@ $navItems = [
     'gateways'    => ['icon' => 'bi-credit-card-2-front','label' => 'API / Payment Gateway',  'href' => 'admin.php?tab=api&gw=toggles'],
     'smtp'        => ['icon' => 'bi-envelope-paper-heart','label' => 'SMTP / Mail Server', 'href' => 'admin.php?tab=smtp'],
     'regions'     => ['icon' => 'bi-globe',              'label' => 'Regions',            'href' => 'admin.php?tab=regions'],
+    'seo'         => ['icon' => 'bi-stars',              'label' => 'AI SEO Centre',      'href' => 'admin.php?tab=seo'],
     'settings'    => ['icon' => 'bi-gear',               'label' => 'Settings',           'href' => 'admin.php?tab=settings', 'hidden' => true],
 ];
 $adminActive = $adminActive ?? '';
@@ -1231,10 +1232,47 @@ hr { border-color: var(--border); opacity:.5; }
         <i class="bi <?= esc($i['icon']) ?>"></i><?= esc($i['label']) ?>
       </a>
     <?php endforeach; ?>
+    <div class="side-section">Growth</div>
+    <?php foreach (['seo'] as $k): $i = $navItems[$k];
+      // Has the auto-AI-blogger published a fresh post the admin hasn't seen yet?
+      try {
+        $seoBadge = (int)db()->query("SELECT COUNT(*) FROM seo_ai_blog_log WHERE acknowledged_at IS NULL")->fetchColumn();
+      } catch (Throwable $e) { $seoBadge = 0; }
+    ?>
+      <a class="item <?= $adminActive===$k?'active':'' ?>" href="<?= esc($i['href']) ?>" data-testid="adm-nav-<?= $k ?>">
+        <i class="bi <?= esc($i['icon']) ?>"></i><?= esc($i['label']) ?>
+        <?php if ($seoBadge > 0): ?>
+          <span class="adm-nav-badge" data-testid="adm-nav-seo-badge"><?= $seoBadge > 99 ? '99+' : $seoBadge ?></span>
+        <?php endif; ?>
+      </a>
+    <?php endforeach; ?>
   </aside>
   <div class="adm-sidebar-overlay" onclick="document.querySelector('.adm-sidebar').classList.remove('open')"></div>
 
   <main class="adm-content">
+
+<?php
+// ===========================================================================
+// AI auto-blog toast — when the AI auto-blogger has just published a new post
+// the admin hasn't acknowledged yet, surface a one-time pop-in toast on every
+// admin page so they know what the AI just shipped.  Stays dismissable via
+// the SEO Centre's primary alert.
+// ===========================================================================
+$autoBlogToast = null;
+if ($adminActive !== 'seo') {
+    try {
+        require_once __DIR__ . '/seo_ai.php';
+        $autoBlogToast = seo_ai_pending_alert_post();
+    } catch (Throwable $e) { $autoBlogToast = null; }
+}
+?>
+<?php if ($autoBlogToast): ?>
+  <div class="adm-chat-toast" style="background:linear-gradient(135deg,#d97706,#f59e0b);" data-testid="adm-ai-blog-toast" onclick="window.location.href='admin.php?tab=seo'">
+    <span class="close" data-testid="adm-ai-blog-toast-close" onclick="event.stopPropagation(); this.parentElement.style.display='none';">×</span>
+    <div class="ttl"><i class="bi bi-robot"></i> AI auto-published a new blog post</div>
+    <div class="msg"><?= esc(mb_substr($autoBlogToast['title'], 0, 90)) ?> · click to view</div>
+  </div>
+<?php endif; ?>
 
 <script>
 document.addEventListener('click', function(e){

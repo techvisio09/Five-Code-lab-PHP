@@ -184,6 +184,17 @@ function seo_ensure_table(): void
         sitemap_urls INT DEFAULT 0,
         notes TEXT
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    db()->exec("CREATE TABLE IF NOT EXISTS seo_ai_blog_log (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        blog_id VARCHAR(100) NOT NULL,
+        product_slug VARCHAR(191) NOT NULL,
+        product_name VARCHAR(255) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        word_count INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        acknowledged_at TIMESTAMP NULL DEFAULT NULL,
+        KEY idx_created (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 
 function seo_get_meta(string $kind, string $refId): array
@@ -359,7 +370,22 @@ function seo_run_daily(int $maxItems = 8): array
     $notes[] = 'IndexNow endpoints: ' . json_encode($in['endpoints'] ?? []);
     $notes[] = 'Sitemap pings: ' . json_encode($pings);
 
-    // 6. Log the run
+    // 6. AI auto-blog: one fresh blog post per calendar day, no manual work
+    $autoBlog = seo_ai_run_daily_blog();
+    if (!empty($autoBlog['ok'])) {
+        $indexnowUrls[] = $autoBlog['url'];
+        $notes[] = 'AI auto-published blog: "' . $autoBlog['title'] . '" → /blog-post.php?id=' . $autoBlog['blog_id'];
+        // Submit the brand-new post immediately so search engines see it today
+        seo_indexnow_submit([$autoBlog['url']]);
+        // Regenerate the sitemap now that there's a new post on the site
+        $sitemapUrls = seo_generate_sitemap();
+    } elseif (!empty($autoBlog['skipped'])) {
+        $notes[] = 'AI auto-blog skipped: ' . $autoBlog['skipped'];
+    } elseif (!empty($autoBlog['error'])) {
+        $notes[] = 'AI auto-blog error: ' . $autoBlog['error'];
+    }
+
+    // 7. Log the run
     db()->prepare('INSERT INTO seo_run_log (items_refreshed, urls_indexnow, sitemap_urls, notes) VALUES (?,?,?,?)')
         ->execute([$refreshed, count($indexnowUrls), $sitemapUrls, implode("\n", $notes)]);
 
@@ -370,6 +396,7 @@ function seo_run_daily(int $maxItems = 8): array
         'llms_full_lines'  => $llmsLines,
         'indexnow_results' => $in,
         'sitemap_pings'    => $pings,
+        'auto_blog'        => $autoBlog,
         'notes'            => $notes,
     ];
 }
@@ -381,4 +408,150 @@ function seo_recent_runs(int $limit = 10): array
     $s->bindValue(1, $limit, PDO::PARAM_INT);
     $s->execute();
     return $s->fetchAll() ?: [];
+}
+
+// --------------------------------------------------------------------
+//  AI Auto-Blogger — picks one product per day and publishes a full
+//  blog post about it.  Enforces a one-per-calendar-day cap.
+// --------------------------------------------------------------------
+function seo_ai_blog_already_today(): bool
+{
+    seo_ensure_table();
+    $s = db()->query("SELECT COUNT(*) FROM seo_ai_blog_log WHERE DATE(created_at) = CURDATE()");
+    return ((int)$s->fetchColumn()) > 0;
+}
+
+function seo_ai_pick_blog_product(): array
+{
+    // Pick a product the AI hasn't covered yet (preferred), else the
+    // least-recently AI-covered one.  Skips products the AI has already
+    // written a blog about in the last 90 days to keep content fresh.
+    $row = db()->query(
+        "SELECT p.* FROM products p
+         WHERE " . active_regions_sql_in('p.region') . "
+           AND p.slug NOT IN (
+             SELECT product_slug FROM seo_ai_blog_log
+             WHERE created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+           )
+         ORDER BY p.reviews DESC, RAND()
+         LIMIT 1"
+    )->fetch();
+    if ($row) return $row;
+    // Fallback — every product has had a recent AI post, so just rotate the
+    // least-recently-covered one back in.
+    $row = db()->query(
+        "SELECT p.* FROM products p
+         LEFT JOIN seo_ai_blog_log b ON b.product_slug = p.slug
+         WHERE " . active_regions_sql_in('p.region') . "
+         ORDER BY b.created_at ASC, RAND()
+         LIMIT 1"
+    )->fetch();
+    return $row ?: [];
+}
+
+function seo_ai_generate_blog_body(array $product): array
+{
+    $system = 'You are a senior SEO content writer for an authorised software reseller. '
+            . 'Write a 600-900 word, HTML-formatted blog post that BUYERS would actually find useful. '
+            . 'It must read as authentic editorial — no marketing fluff, no over-promising. '
+            . 'Output STRICT JSON only (no code fence) with keys: '
+            . 'title (≤ 70 chars, compelling, NOT clickbait), '
+            . 'lead (one-sentence dek, ≤ 160 chars), '
+            . 'html (the article body — use <h2>, <h3>, <p>, <ul><li>, <strong>; '
+            . 'open with a 1-sentence <p class="lead">…</p> dek; include 2-3 H2 sections; end with a clear '
+            . '<p><a class="btn btn-primary rounded-pill px-4" href="product.php?slug=' . addslashes($product['slug']) . '">View ' . addslashes(mb_substr($product['name'], 0, 60)) . ' →</a></p> CTA), '
+            . 'read_time (e.g. "5 min read" — base it on the html body length).';
+    $userMsg = 'Featured product:'
+             . "\n- Name: " . $product['name']
+             . "\n- Platform: " . ($product['platform'] ?? 'Windows')
+             . "\n- Category: " . ($product['category'] ?? 'Software')
+             . "\n- Price: $" . $product['price']
+             . "\n- License type: " . ($product['license_type'] ?? 'lifetime')
+             . "\n- Brand: " . ($product['brand'] ?? '')
+             . "\n- Reseller: " . SITE_BRAND
+             . "\n\nWrite an editorial-style guide that genuinely helps a buyer decide if this product is right for them. "
+             . "You can cover topics like: who it is for, what is genuinely new/notable, common misconceptions, "
+             . "buying tips, comparison with subscription alternatives, or installation/activation pointers — pick "
+             . "whichever 2-3 angles fit this product best.";
+    $raw = seo_llm_complete($system, $userMsg, 2000);
+    $j = json_decode(_seo_strip_codefence($raw), true);
+    return is_array($j) ? $j : [];
+}
+
+function seo_ai_publish_blog_for_product(array $product): array
+{
+    seo_ensure_table();
+    if (empty($product['slug']) || empty($product['name'])) {
+        return ['ok' => false, 'error' => 'invalid product'];
+    }
+    $body = seo_ai_generate_blog_body($product);
+    if (empty($body['title']) || empty($body['html'])) {
+        return ['ok' => false, 'error' => 'AI returned empty body'];
+    }
+
+    // Allocate the next numeric blog id (existing ids are numeric strings).
+    $nextId = (int)db()->query("SELECT IFNULL(MAX(CAST(id AS UNSIGNED)), 0) + 1 FROM blog_posts")->fetchColumn();
+    if ($nextId < 1) $nextId = 1;
+
+    $title    = mb_substr((string)$body['title'], 0, 250);
+    $html     = (string)$body['html'];
+    $readTime = (string)($body['read_time'] ?? '5 min read');
+    $date     = date('M j, Y');
+    $image    = (string)($product['image'] ?? '');
+
+    db()->prepare('INSERT INTO blog_posts (id, title, date, read_time, image, content) VALUES (?,?,?,?,?,?)')
+        ->execute([(string)$nextId, $title, $date, $readTime, $image, $html]);
+
+    $wordCount = max(1, str_word_count(strip_tags($html)));
+    db()->prepare('INSERT INTO seo_ai_blog_log (blog_id, product_slug, product_name, title, word_count) VALUES (?,?,?,?,?)')
+        ->execute([(string)$nextId, (string)$product['slug'], (string)$product['name'], $title, $wordCount]);
+
+    return [
+        'ok'          => true,
+        'blog_id'     => (string)$nextId,
+        'title'       => $title,
+        'word_count'  => $wordCount,
+        'product'     => $product['name'],
+        'url'         => rtrim(site_url(), '/') . '/blog-post.php?id=' . $nextId,
+    ];
+}
+
+function seo_ai_run_daily_blog(): array
+{
+    if (seo_ai_blog_already_today()) {
+        return ['ok' => false, 'skipped' => 'already published today'];
+    }
+    $product = seo_ai_pick_blog_product();
+    if (!$product) {
+        return ['ok' => false, 'error' => 'no eligible product'];
+    }
+    return seo_ai_publish_blog_for_product($product);
+}
+
+function seo_ai_recent_blog_posts(int $limit = 12): array
+{
+    seo_ensure_table();
+    $s = db()->prepare('SELECT * FROM seo_ai_blog_log ORDER BY id DESC LIMIT ?');
+    $s->bindValue(1, $limit, PDO::PARAM_INT);
+    $s->execute();
+    return $s->fetchAll() ?: [];
+}
+
+function seo_ai_pending_alert_post(): ?array
+{
+    seo_ensure_table();
+    $row = db()->query('SELECT * FROM seo_ai_blog_log WHERE acknowledged_at IS NULL ORDER BY id DESC LIMIT 1')->fetch();
+    return $row ?: null;
+}
+
+function seo_ai_acknowledge_blog_post(int $id): void
+{
+    seo_ensure_table();
+    db()->prepare('UPDATE seo_ai_blog_log SET acknowledged_at = NOW() WHERE id = ?')->execute([$id]);
+}
+
+function seo_ai_acknowledge_all_blog_posts(): void
+{
+    seo_ensure_table();
+    db()->exec('UPDATE seo_ai_blog_log SET acknowledged_at = NOW() WHERE acknowledged_at IS NULL');
 }
