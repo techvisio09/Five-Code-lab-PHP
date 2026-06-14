@@ -1169,31 +1169,32 @@ body.has-deal-bar #chat-panel { bottom: 155px; }
 
 /* ---------- Toll-free phone CTA (navbar pill + trust bar + mobile) ---------- */
 .phone-cta { align-items: center; gap: .55rem; padding: .35rem 1rem .35rem .4rem; border-radius: 999px;
-  background: linear-gradient(135deg, #FFC439, #F5BC00); color: #fff !important; text-decoration: none;
-  font-weight: 800; font-size: 1rem; letter-spacing: .01em; white-space: nowrap;
-  box-shadow: 0 8px 20px rgba(255, 196, 57, .35);
+  background: linear-gradient(135deg, #FFC439, #F5BC00); color: #142C8E !important; text-decoration: none;
+  font-weight: 700; font-size: 1rem; letter-spacing: .01em; white-space: nowrap;
+  box-shadow: 0 6px 16px rgba(255, 196, 57, .35);
   animation: phone-pulse 2.6s ease-in-out infinite;
   transition: transform .15s ease, box-shadow .15s ease; }
-.phone-cta:hover { color: #fff; transform: translateY(-1px) scale(1.02); box-shadow: 0 12px 28px rgba(255, 196, 57, .55); }
+.phone-cta:hover { color: #142C8E !important; transform: translateY(-1px) scale(1.02); box-shadow: 0 12px 28px rgba(255, 196, 57, .55); }
 .phone-cta-icon { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; font-size: .95rem;
-  background: rgba(255, 255, 255, .22); border: 1px solid rgba(255, 255, 255, .35);
+  background: #142C8E; color: #FFC439 !important; border: 1px solid rgba(20, 44, 142, .3);
   display: inline-flex; align-items: center; justify-content: center;
   animation: phone-ring 2.6s ease-in-out infinite; }
-.phone-cta-label { display: block; font-size: .55rem; font-weight: 800; letter-spacing: .14em; opacity: .92; margin-bottom: .12rem; }
+.phone-cta-label { display: block; font-size: .58rem; font-weight: 700; letter-spacing: .14em; opacity: .85; margin-bottom: .12rem; color: #142C8E; }
 @keyframes phone-pulse {
-  0%, 100% { box-shadow: 0 8px 20px rgba(255, 196, 57, .35); }
-  50% { box-shadow: 0 8px 26px rgba(255, 196, 57, .6), 0 0 0 7px rgba(255, 196, 57, .12); }
+  0%, 100% { box-shadow: 0 6px 16px rgba(255, 196, 57, .35); }
+  50% { box-shadow: 0 8px 26px rgba(255, 196, 57, .6), 0 0 0 7px rgba(255, 196, 57, .14); }
 }
 @keyframes phone-ring {
   0%, 24%, 100% { transform: rotate(0); }
   4% { transform: rotate(-16deg); } 8% { transform: rotate(14deg); }
   12% { transform: rotate(-10deg); } 16% { transform: rotate(7deg); } 20% { transform: rotate(0); }
 }
-.trustbar-phone { font-size: .98rem; font-weight: 800; color: #009CDE !important; letter-spacing: .01em; }
-.trustbar-phone .bi { animation: phone-ring 2.6s ease-in-out infinite; display: inline-block; }
-.phone-cta-mobile { font-size: .78rem; background: linear-gradient(135deg, #FFC439, #F5BC00); color: #fff;
-  border: none; box-shadow: 0 4px 12px rgba(255, 196, 57, .35); animation: phone-pulse 2.6s ease-in-out infinite; }
-.phone-cta-mobile:hover { color: #fff; }
+.trustbar-phone { font-size: 1rem; font-weight: 600; color: #ffffff !important; letter-spacing: .01em; }
+.trustbar-phone:hover { color: #FFC439 !important; }
+.trustbar-phone .bi { animation: phone-ring 2.6s ease-in-out infinite; display: inline-block; color: #FFC439; }
+.phone-cta-mobile { font-size: .78rem; background: linear-gradient(135deg, #FFC439, #F5BC00); color: #142C8E !important;
+  font-weight: 700; border: none; box-shadow: 0 4px 12px rgba(255, 196, 57, .35); animation: phone-pulse 2.6s ease-in-out infinite; }
+.phone-cta-mobile:hover { color: #142C8E !important; }
 @media (prefers-reduced-motion: reduce) { .phone-cta, .phone-cta-icon, .trustbar-phone .bi, .phone-cta-mobile { animation: none; } }
 
 /* ---------- Product page: 360° viewer ---------- */
@@ -1868,10 +1869,8 @@ body .btn-primary:focus {
   box-shadow: none !important;
 }
 
-/* Phone CTA in navbar */
-.phone-cta { color: var(--pp-blue-dark) !important; }
-.phone-cta:hover { color: var(--pp-blue) !important; }
-.phone-cta-icon { background: var(--pp-blue) !important; color: #fff !important; }
+/* Phone CTA in navbar — kept consistent in both themes by .phone-cta base rules
+   (navy-on-yellow). No further override here. */
 
 /* Hero showcase tweaks — replace orange glow with PayPal yellow accent */
 .hero-art-glow.glow-1 { background: var(--pp-blue) !important; opacity: .22 !important; }
@@ -2426,8 +2425,28 @@ body .btn-primary:focus {
 /* Toll-free pill (bottom-left) */
 [data-bs-theme="dark"] .tollfree-pill { background: #1B2A5E !important; color: #E6EAF5 !important; border-color: rgba(168,200,236,.22) !important; }
 [data-bs-theme="dark"] .tf-eyebrow { color: #A5B1CC !important; }
-[data-bs-theme="dark"] .tf-num     { color: #ffffff !important; }
-[data-bs-theme="dark"] .tf-free    { color: var(--pp-yellow) !important; }
+[data-bs-theme="dark"] .tf-num     { color: #ffffff !important; font-weight: 700 !important; }
+[data-bs-theme="dark"] .tf-free    { color: var(--pp-yellow) !important; font-weight: 600 !important; }
+[data-bs-theme="dark"] .tf-ring    { background: var(--pp-yellow) !important; color: #142C8E !important; }
+
+/* Trustbar phone in dark mode — white, semibold (not too bold), yellow hover */
+[data-bs-theme="dark"] .trustbar-phone { color: #ffffff !important; font-weight: 600 !important; }
+[data-bs-theme="dark"] .trustbar-phone:hover { color: var(--pp-yellow) !important; }
+[data-bs-theme="dark"] .trustbar-phone .bi { color: var(--pp-yellow) !important; }
+
+/* Navbar yellow phone-cta — keep navy text on yellow in dark mode too (high contrast) */
+[data-bs-theme="dark"] .phone-cta,
+[data-bs-theme="dark"] .phone-cta:hover,
+[data-bs-theme="dark"] .phone-cta-label,
+[data-bs-theme="dark"] .phone-cta-mobile,
+[data-bs-theme="dark"] .phone-cta-mobile:hover { color: #142C8E !important; }
+[data-bs-theme="dark"] .phone-cta-icon { background: #142C8E !important; color: var(--pp-yellow) !important; }
+
+/* Footer phone link — light & clearly readable, semibold only */
+[data-bs-theme="dark"] .footer-dark p a[href^="tel:"],
+.footer-dark p a[href^="tel:"] { color: #ffffff !important; font-weight: 600 !important; text-decoration: none; }
+[data-bs-theme="dark"] .footer-dark p a[href^="tel:"]:hover,
+.footer-dark p a[href^="tel:"]:hover { color: var(--pp-yellow, #FFC439) !important; }
 
 /* Add-to-Cart popup */
 [data-bs-theme="dark"] #cart-popup { background: #142046 !important; color: #E6EAF5 !important; border-color: rgba(168,200,236,.18) !important; box-shadow: 0 18px 40px rgba(0,0,0,.55) !important; }
