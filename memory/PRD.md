@@ -23,16 +23,24 @@ Rebrand the existing storefront from "Maventech Software" to **Fivecodelab Softw
   - DB `settings` table updated for `company_name`, `company_email`, `company_address`, statement names and gateway merchant names
   - All hardcoded "Maventech" strings replaced with "Fivecodelab" in PHP files (header, footer, account, checkout, about-us, reviews, email helpers, pdf templates, mailer, visitor_track)
   - Promo code `MAVEN20` → `FIVE20` in header bar + deal bar (coupons table mapping in `functions.php` still accepts both)
+- **Custom Fivecodelab SVG brand mark**
+  - `render_logo()` now emits a polished PayPal-style mark for Fivecodelab brand: rounded navy/blue gradient square with a stylized "5", glassy highlight, and a signature yellow accent dot
+  - Used automatically by the **navbar** and **footer** (no upload needed; previous DB `company_logo` setting cleared so the custom SVG wins)
+  - Standalone asset also saved to `/app/php-version/assets/images/fivecodelab-logo.svg`
+- **Hero Orbit (new front-page hero matching fivecodelabsoftware.com)**
+  - Replaced `hero-showcase` markup in `/app/php-version/index.php` with `.hero-orbit` containing:
+    - 2 rotating dashed concentric rings (outer 28s clockwise, inner 18s counter-clockwise)
+    - 6 floating Microsoft Office satellite icons (Word/Excel/PowerPoint/Outlook/Access/Windows) with independent bouncing/rotation animations
+    - 3D flip-and-fade central spotlight that cycles through the 6 apps every 3.4s with name + tagline caption ("FEATURED — Microsoft Word — Documents · Lifetime License")
+    - Floating yellow "Keys in 15-30 min" pill + white "★ 4.6/5" rating chip
+  - Pure CSS rings/animations + ~60 lines of JS in `main.js` for the cycling
+  - Honours `prefers-reduced-motion`
 - **PayPal-style theme overhaul**
   - All cyan/teal/orange hex tokens swapped to PayPal palette via in-place rewrite of `assets/css/style.css`
-  - Appended ~200-line PayPal polish layer at the end of `style.css` (clean white hero, navy headings, yellow Shop Now button, navy footer/topbar, blue chat bubble, etc.)
-- **Webmail link**
-  - Top trust bar (right) and footer "Support" column + brand column (Webmail Login)
-- **Google Maps**
-  - Footer Google Maps button uses dynamic `urlencode($brandAddress)`, now resolves to Moreno Valley
-- **Admin credentials**
-  - DB user row updated: email = `services@fivecodelabsoftware.com`, password = `Fivecode@2026!` (bcrypt re-hashed)
-  - Saved to `/app/memory/test_credentials.md`
+  - Appended PayPal polish layer (clean white hero, navy headings, yellow Shop Now button, navy footer/topbar, blue chat bubble, etc.)
+- **Webmail link** in top trust bar AND footer (brand column + Support column)
+- **Google Maps** auto-resolves to Moreno Valley via dynamic `urlencode($brandAddress)`
+- **Admin credentials**: DB user row updated; saved to `/app/memory/test_credentials.md`
 
 ## Test Status
 - Smoke test screenshots: home + footer band — PayPal theme is rendering correctly

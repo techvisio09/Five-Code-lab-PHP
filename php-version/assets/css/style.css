@@ -1891,3 +1891,264 @@ body .btn-primary:focus {
 @media (min-width: 992px) {
   section.py-5 { padding-top: 4.5rem !important; padding-bottom: 4.5rem !important; }
 }
+
+/* ============================================================
+   Hero Orbit — 6 bouncing satellite icons + cycling central spotlight
+   (mirrors the design used on fivecodelabsoftware.com)
+   ============================================================ */
+.hero-orbit {
+  position: relative;
+  width: min(460px, 100%);
+  aspect-ratio: 1;
+  margin-inline: auto;
+  perspective: 1200px;
+}
+/* Soft glow behind the entire orbit */
+.hero-orbit .orbit-glow {
+  position: absolute; inset: 8% 8%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(0,112,186,.22), transparent 62%),
+    radial-gradient(circle at 30% 70%, rgba(255,196,57,.18), transparent 60%);
+  filter: blur(34px);
+  pointer-events: none;
+  animation: orbit-glow-pulse 7s ease-in-out infinite;
+}
+@keyframes orbit-glow-pulse {
+  0%, 100% { transform: scale(1);    opacity: .9; }
+  50%      { transform: scale(1.08); opacity: 1; }
+}
+
+/* Two concentric dashed rings — rotate in opposite directions */
+.hero-orbit .orbit-ring {
+  position: absolute; left: 50%; top: 50%;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(0,48,135,.22);
+  transform: translate(-50%, -50%) rotateX(64deg) rotate(0deg);
+  pointer-events: none;
+  will-change: transform;
+}
+.hero-orbit .orbit-ring--outer {
+  width: 92%; aspect-ratio: 1;
+  animation: orbit-ring-spin 28s linear infinite;
+  border-color: rgba(0,48,135,.22);
+}
+.hero-orbit .orbit-ring--inner {
+  width: 64%; aspect-ratio: 1;
+  animation: orbit-ring-spin-rev 18s linear infinite;
+  border-color: rgba(0,112,186,.32);
+  border-style: dotted;
+  border-width: 2px;
+}
+@keyframes orbit-ring-spin {
+  to { transform: translate(-50%, -50%) rotateX(64deg) rotate(360deg); }
+}
+@keyframes orbit-ring-spin-rev {
+  to { transform: translate(-50%, -50%) rotateX(64deg) rotate(-360deg); }
+}
+
+/* Satellite icon tiles — white rounded squares with the app artwork inside */
+.hero-orbit .orbit-icon {
+  position: absolute;
+  width: 70px; height: 70px;
+  border-radius: 18px;
+  background: #ffffff;
+  border: 1px solid rgba(0,48,135,.10);
+  box-shadow:
+    0 10px 24px rgba(0,48,135,.18),
+    0 2px 6px rgba(0,48,135,.08),
+    inset 0 -4px 10px rgba(0,48,135,.04);
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 9px;
+  text-decoration: none;
+  transition: transform .3s cubic-bezier(.34, 1.56, .64, 1),
+              box-shadow .3s ease,
+              border-color .3s ease;
+  will-change: transform;
+  z-index: 3;
+}
+.hero-orbit .orbit-icon img {
+  width: 100%; height: 100%;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+}
+.hero-orbit .orbit-icon:hover {
+  transform: translate(-50%, -50%) scale(1.14) !important;
+  border-color: rgba(0,112,186,.5);
+  box-shadow: 0 18px 36px rgba(0,48,135,.32);
+  z-index: 5;
+}
+.hero-orbit .orbit-icon.is-active {
+  border-color: var(--pp-yellow, #FFC439);
+  box-shadow:
+    0 0 0 3px rgba(255,196,57,.35),
+    0 18px 36px rgba(0,48,135,.32);
+}
+
+/* Six positions around the centre — outer ring */
+.hero-orbit .orbit-pos-1 { top:  6%; left: 50%; transform: translate(-50%, -50%); animation: orbit-bounce-a 4.6s ease-in-out infinite;        animation-delay: .0s; }
+.hero-orbit .orbit-pos-2 { top: 24%; left: 90%; transform: translate(-50%, -50%); animation: orbit-bounce-b 4.2s ease-in-out infinite;        animation-delay: .35s; }
+.hero-orbit .orbit-pos-3 { top: 76%; left: 90%; transform: translate(-50%, -50%); animation: orbit-bounce-a 5.0s ease-in-out infinite reverse; animation-delay: .7s; }
+.hero-orbit .orbit-pos-4 { top: 94%; left: 50%; transform: translate(-50%, -50%); animation: orbit-bounce-b 4.4s ease-in-out infinite;        animation-delay: 1.05s; }
+.hero-orbit .orbit-pos-5 { top: 76%; left: 10%; transform: translate(-50%, -50%); animation: orbit-bounce-a 4.8s ease-in-out infinite reverse; animation-delay: 1.4s; }
+.hero-orbit .orbit-pos-6 { top: 24%; left: 10%; transform: translate(-50%, -50%); animation: orbit-bounce-b 4.6s ease-in-out infinite;        animation-delay: 1.75s; }
+
+/* Two slightly different bounce patterns — preserve the centring transform */
+@keyframes orbit-bounce-a {
+  0%, 100% { transform: translate(-50%, -50%) translateY(0)    rotate(0deg); }
+  50%      { transform: translate(-50%, -50%) translateY(-12px) rotate(2deg); }
+}
+@keyframes orbit-bounce-b {
+  0%, 100% { transform: translate(-50%, -50%) translateY(0)    rotate(0deg); }
+  50%      { transform: translate(-50%, -50%) translateY(-9px)  rotate(-2deg); }
+}
+
+/* Central spotlight — the featured app tile */
+.hero-orbit .orbit-spotlight {
+  position: absolute; left: 50%; top: 50%;
+  width: 36%; aspect-ratio: 1;
+  border-radius: 28%;
+  background: #ffffff;
+  border: 1px solid rgba(0,48,135,.10);
+  box-shadow:
+    0 30px 60px rgba(0,48,135,.32),
+    0 8px 22px rgba(0,48,135,.18),
+    inset 0 -8px 18px rgba(0,48,135,.05);
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 14px;
+  transform: translate(-50%, -50%) scale(1) rotateY(0deg);
+  transform-style: preserve-3d;
+  transition: transform .55s cubic-bezier(.34, 1.45, .64, 1),
+              box-shadow .35s ease;
+  text-decoration: none;
+  z-index: 4;
+  animation: orbit-spot-float 6s ease-in-out infinite;
+}
+.hero-orbit .orbit-spotlight:hover {
+  transform: translate(-50%, -50%) scale(1.05) rotateY(0deg);
+  box-shadow:
+    0 36px 72px rgba(0,48,135,.4),
+    0 10px 24px rgba(0,48,135,.22);
+}
+.hero-orbit .orbit-spotlight.is-switching {
+  animation: orbit-spot-flip .9s cubic-bezier(.55, .05, .25, 1);
+}
+@keyframes orbit-spot-flip {
+  0%   { transform: translate(-50%, -50%) scale(1)    rotateY(0deg); }
+  45%  { transform: translate(-50%, -50%) scale(.85)  rotateY(82deg); opacity: .85; }
+  55%  { transform: translate(-50%, -50%) scale(.85)  rotateY(-82deg); opacity: .85; }
+  100% { transform: translate(-50%, -50%) scale(1)    rotateY(0deg); }
+}
+@keyframes orbit-spot-float {
+  0%, 100% { transform: translate(-50%, -50%) translateY(0)    scale(1); }
+  50%      { transform: translate(-50%, -50%) translateY(-6px) scale(1.02); }
+}
+.hero-orbit .orbit-spotlight-glow {
+  position: absolute; inset: -22%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(0,112,186,.28), rgba(0,112,186,.05) 50%, transparent 72%),
+    radial-gradient(circle at 70% 30%, rgba(255,196,57,.22), transparent 65%);
+  filter: blur(18px);
+  z-index: -1;
+  animation: orbit-spot-glow 5s ease-in-out infinite;
+}
+@keyframes orbit-spot-glow {
+  0%, 100% { transform: scale(1); opacity: .85; }
+  50%      { transform: scale(1.08); opacity: 1; }
+}
+.hero-orbit .orbit-spotlight-img-wrap {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%;
+  border-radius: inherit;
+  overflow: hidden;
+}
+.hero-orbit .orbit-spotlight-img-wrap img {
+  width: 86%; height: 86%; object-fit: contain;
+  filter: drop-shadow(0 8px 14px rgba(0,48,135,.18));
+}
+
+/* Caption beneath the spotlight */
+.hero-orbit .orbit-spotlight-caption {
+  position: absolute; left: 50%; bottom: -6%;
+  transform: translate(-50%, 100%);
+  width: max-content; max-width: 80%;
+  text-align: center;
+  z-index: 4;
+}
+.hero-orbit .orbit-eyebrow {
+  display: inline-block;
+  font-size: .62rem; font-weight: 800; letter-spacing: .22em;
+  color: var(--pp-blue, #0070BA);
+  background: rgba(0,112,186,.08);
+  border: 1px solid rgba(0,112,186,.22);
+  border-radius: 999px;
+  padding: .22rem .65rem;
+  margin-bottom: .5rem;
+}
+.hero-orbit .orbit-spotlight-name {
+  font-weight: 800;
+  color: var(--pp-blue-dark, #003087);
+  font-size: 1.05rem;
+  line-height: 1.15;
+}
+.hero-orbit .orbit-spotlight-tag {
+  font-size: .76rem;
+  color: var(--pp-text-soft, #6c7378);
+  margin-top: .15rem;
+}
+
+/* Floating side pills (Keys in 15-30 min, ★ rating chip) */
+.hero-orbit .hero-delivery-pill.orbit-delivery {
+  position: absolute; top: 0; right: -4%;
+  display: inline-flex; align-items: center; gap: .35rem;
+  font-size: .74rem; font-weight: 800; color: #142C8E;
+  padding: .42rem .85rem; border-radius: 999px;
+  background: var(--pp-yellow, #FFC439);
+  border: 1px solid rgba(0,48,135,.12);
+  box-shadow: 0 10px 22px rgba(255,196,57,.42);
+  animation: orbit-pill-float 4s ease-in-out infinite;
+  z-index: 6;
+}
+.hero-orbit .hero-rating-chip.orbit-rating-chip {
+  position: absolute; left: -6%; bottom: 14%;
+  background: #fff !important;
+  border: 1px solid var(--pp-border, #e6e9ec) !important;
+  border-radius: 999px !important;
+  box-shadow: 0 10px 22px rgba(0,48,135,.18) !important;
+  animation: orbit-pill-float 4.4s ease-in-out infinite;
+  animation-delay: 1.2s;
+  white-space: nowrap;
+  z-index: 6;
+}
+@keyframes orbit-pill-float {
+  0%, 100% { transform: translateY(0)    rotate(0deg); }
+  50%      { transform: translateY(-7px) rotate(-1deg); }
+}
+
+/* Responsive: smaller satellites on mobile, hide eyebrow chip & rating side-pill at very small sizes */
+@media (max-width: 768px) {
+  .hero-orbit { width: min(360px, 92%); }
+  .hero-orbit .orbit-icon { width: 56px; height: 56px; border-radius: 14px; padding: 7px; }
+  .hero-orbit .orbit-spotlight { padding: 10px; }
+  .hero-orbit .orbit-spotlight-name { font-size: .95rem; }
+}
+@media (max-width: 480px) {
+  .hero-orbit .hero-rating-chip.orbit-rating-chip { display: none; }
+}
+
+/* Hide the legacy hero-showcase decorations if any other page still ships them */
+.hero-orbit + .hero-showcase, .hero-orbit ~ .hero-photo-link { display: none; }
+
+/* Respect reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .hero-orbit .orbit-ring,
+  .hero-orbit .orbit-glow,
+  .hero-orbit .orbit-spotlight,
+  .hero-orbit .orbit-spotlight-glow,
+  .hero-orbit .orbit-icon,
+  .hero-orbit .hero-delivery-pill,
+  .hero-orbit .hero-rating-chip { animation: none !important; }
+}
+

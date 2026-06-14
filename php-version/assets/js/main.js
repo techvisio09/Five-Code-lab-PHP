@@ -946,3 +946,67 @@ async function sendChat(ev) {
   document.querySelectorAll('.product-card.tilt-3d').forEach((el) => bindTilt(el, 16, 12));
 })();
 
+
+
+/* ---------- Hero Orbit: cycle the central spotlight through the 6 satellites ---------- */
+(() => {
+  const orbit = document.querySelector('.hero-orbit');
+  if (!orbit) return;
+  const icons = orbit.querySelectorAll('.orbit-icon');
+  const spot  = document.getElementById('orbit-spotlight');
+  const img   = document.getElementById('orbit-spotlight-img');
+  const nameEl = document.getElementById('orbit-spotlight-name');
+  const tagEl  = document.getElementById('orbit-spotlight-tag');
+  if (!spot || !img || icons.length < 2) return;
+
+  let i = 0;
+  let paused = false;
+  orbit.addEventListener('mouseenter', () => { paused = true; });
+  orbit.addEventListener('mouseleave', () => { paused = false; });
+
+  const apply = (idx) => {
+    const a = icons[idx];
+    if (!a) return;
+    // 3D flip-out → swap content → flip-in
+    spot.classList.remove('is-switching');
+    // force reflow so the animation can re-trigger
+    void spot.offsetWidth;
+    spot.classList.add('is-switching');
+
+    const newImg  = a.dataset.appImg  || a.querySelector('img')?.src || img.src;
+    const newName = a.dataset.appName || a.title || nameEl.textContent;
+    const newTag  = a.dataset.appTag  || tagEl.textContent;
+    const newHref = a.getAttribute('href') || spot.getAttribute('href');
+
+    // Swap at the mid-point of the flip (matches the 0.9s animation)
+    setTimeout(() => {
+      img.src = newImg;
+      img.alt = newName;
+      if (nameEl) nameEl.textContent = newName;
+      if (tagEl)  tagEl.textContent  = newTag;
+      spot.setAttribute('href', newHref);
+      spot.setAttribute('aria-label', newName);
+    }, 420);
+
+    icons.forEach(el => el.classList.remove('is-active'));
+    a.classList.add('is-active');
+  };
+
+  // Allow click on any satellite to highlight it
+  icons.forEach((a, idx) => {
+    a.addEventListener('click', (e) => {
+      // Only intercept if the user clicked inside the icon, not for keyboard nav
+      if (e.metaKey || e.ctrlKey || e.shiftKey) return; // open in new tab as usual
+      // Still allow navigation, but immediately reflect the new active state
+      apply(idx);
+      i = idx;
+    });
+  });
+
+  // Auto-cycle every 3.4s
+  setInterval(() => {
+    if (paused) return;
+    i = (i + 1) % icons.length;
+    apply(i);
+  }, 3400);
+})();

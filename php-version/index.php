@@ -50,58 +50,58 @@ include __DIR__ . '/includes/header.php';
         </div>
       </div>
       <div class="col-lg-5">
-        <?php $hi = app_icons(); ?>
-        <div class="hero-showcase mx-auto" data-testid="hero-showcase">
-          <div class="hero-showcase-frame">
-            <div class="hero-art" aria-hidden="true">
-              <span class="hero-art-glow glow-1"></span>
-              <span class="hero-art-glow glow-2"></span>
-              <span class="hero-brand-watermark"><?= render_logo(340) ?></span>
-              <span class="hero-tile tile-1"><img src="<?= esc($hi['word']) ?>" alt="Microsoft Word"></span>
-              <span class="hero-tile tile-2"><img src="<?= esc($hi['excel']) ?>" alt="Microsoft Excel"></span>
-              <span class="hero-tile tile-3"><img src="<?= esc($hi['powerpoint']) ?>" alt="Microsoft PowerPoint"></span>
-              <span class="hero-tile tile-4"><img src="<?= esc($hi['outlook']) ?>" alt="Microsoft Outlook"></span>
-              <span class="hero-ring"></span>
-              <span class="hero-podium"></span>
-            </div>
-              <div class="hero-stage" data-testid="hero-stage">
-              <div class="hero-abstract" data-testid="hero-abstract">
-                <span class="orb-halo"></span>
-                <?php
-                $heroIcons = [
-                    [$hi['word'], 'Microsoft Word'],
-                    [$hi['excel'], 'Microsoft Excel'],
-                    [$hi['powerpoint'], 'Microsoft PowerPoint'],
-                    [$hi['outlook'], 'Microsoft Outlook'],
-                    ['assets/images/os/windows.svg', 'Microsoft Windows'],
-                ];
-                foreach ($heroIcons as $i => [$src, $label]): ?>
-                  <span class="hero-big-icon<?= $i === 0 ? ' active' : '' ?>" data-testid="hero-big-icon-<?= $i ?>"><img src="<?= esc($src) ?>" alt="<?= esc($label) ?>" title="<?= esc($label) ?>" loading="<?= $i === 0 ? 'eager' : 'lazy' ?>"></span>
-                <?php endforeach; ?>
-                <div class="glass-card gc-code">
-                  <div class="gc-dots"><i></i><i></i><i></i></div>
-                  <div class="gc-line w-75"></div>
-                  <div class="gc-line w-50"></div>
-                  <div class="gc-line w-100"></div>
-                  <div class="gc-line w-25"></div>
-                </div>
-                <div class="glass-card gc-key">
-                  <span class="gc-key-icon"><i class="bi bi-key-fill"></i></span>
-                  <span class="gc-key-text">
-                    <span class="gc-key-title">LICENSE KEY</span>
-                    <span class="gc-key-code">XXXXX-XXXXX-XXXXX</span>
-                  </span>
-                  <i class="bi bi-patch-check-fill gc-check"></i>
-                </div>
-                <span class="cube cb-1"></span>
-                <span class="cube cb-2"></span>
-                <span class="cube cb-3"></span>
-              </div>
-            </div>
-            <a href="shop.php" id="hero-photo-link" class="hero-photo-link" aria-label="Browse all software deals" title="Browse all software deals" data-testid="hero-photo-link"></a>
-            <span class="hero-delivery-pill" data-testid="hero-delivery-pill"><i class="bi bi-lightning-charge-fill"></i>Keys in 15–30 min</span>
+        <?php
+          $hi = app_icons();
+          // Six floating satellite apps + central rotating spotlight.
+          // Mirrors the orbit design used on fivecodelabsoftware.com.
+          $orbitApps = [
+              ['name' => 'Microsoft Word',       'tag' => 'Documents · Lifetime License',      'img' => $hi['word'],       'href' => 'product.php?slug=microsoft-office-2024-professional-plus-windows'],
+              ['name' => 'Microsoft Excel',      'tag' => 'Spreadsheets · Lifetime License',   'img' => $hi['excel'],      'href' => 'product.php?slug=microsoft-office-2024-professional-plus-windows'],
+              ['name' => 'Microsoft PowerPoint', 'tag' => 'Presentations · Lifetime License', 'img' => $hi['powerpoint'], 'href' => 'product.php?slug=microsoft-office-2024-professional-plus-windows'],
+              ['name' => 'Microsoft Outlook',    'tag' => 'Email & Calendar · Lifetime',       'img' => $hi['outlook'],    'href' => 'product.php?slug=microsoft-office-2024-professional-plus-windows'],
+              ['name' => 'Microsoft Access',     'tag' => 'Databases · Lifetime License',      'img' => $hi['access'],     'href' => 'product.php?slug=microsoft-office-2024-professional-plus-windows'],
+              ['name' => 'Windows 11 Pro',       'tag' => 'Operating System · Lifetime',       'img' => 'assets/images/os/windows.svg', 'href' => 'category.php?slug=windows-11'],
+          ];
+        ?>
+        <div class="hero-orbit mx-auto" data-testid="hero-orbit">
+          <div class="orbit-glow" aria-hidden="true"></div>
+          <div class="orbit-ring orbit-ring--outer" aria-hidden="true"></div>
+          <div class="orbit-ring orbit-ring--inner" aria-hidden="true"></div>
+
+          <!-- 6 floating, bouncing satellite icons -->
+          <?php foreach ($orbitApps as $i => $app): ?>
+            <a href="<?= esc($app['href']) ?>"
+               class="orbit-icon orbit-pos-<?= $i + 1 ?><?= $i === 0 ? ' is-active' : '' ?>"
+               data-app-idx="<?= $i ?>"
+               data-app-name="<?= esc($app['name']) ?>"
+               data-app-tag="<?= esc($app['tag']) ?>"
+               data-app-img="<?= esc($app['img']) ?>"
+               aria-label="Highlight <?= esc($app['name']) ?>"
+               title="<?= esc($app['name']) ?>"
+               data-testid="orbit-icon-<?= $i ?>">
+              <img src="<?= esc($app['img']) ?>" alt="<?= esc($app['name']) ?> icon" loading="<?= $i === 0 ? 'eager' : 'lazy' ?>">
+            </a>
+          <?php endforeach; ?>
+
+          <!-- Centered spotlight that cycles through the apps -->
+          <span class="hero-delivery-pill orbit-delivery" data-testid="hero-delivery-pill">
+            <i class="bi bi-lightning-charge-fill"></i>Keys in 15–30 min
+          </span>
+          <span class="hero-rating-chip orbit-rating-chip card px-3 py-2 small fw-bold" data-testid="hero-rating-chip">
+            <span class="text-warning">★</span> 4.6/5 · 5,519+ reviews
+          </span>
+
+          <a href="<?= esc($orbitApps[0]['href']) ?>" id="orbit-spotlight" class="orbit-spotlight is-switching" aria-label="Featured app" data-testid="orbit-spotlight">
+            <span class="orbit-spotlight-glow" aria-hidden="true"></span>
+            <span class="orbit-spotlight-img-wrap">
+              <img id="orbit-spotlight-img" src="<?= esc($orbitApps[0]['img']) ?>" alt="<?= esc($orbitApps[0]['name']) ?>" data-testid="orbit-spotlight-img">
+            </span>
+          </a>
+          <div class="orbit-spotlight-caption" data-testid="orbit-spotlight-caption">
+            <small class="orbit-eyebrow">FEATURED</small>
+            <div id="orbit-spotlight-name" class="orbit-spotlight-name"><?= esc($orbitApps[0]['name']) ?></div>
+            <div id="orbit-spotlight-tag" class="orbit-spotlight-tag"><?= esc($orbitApps[0]['tag']) ?></div>
           </div>
-          <span class="hero-rating-chip card px-3 py-2 small fw-bold" data-testid="hero-rating-chip"><span class="text-warning">★</span> 4.6/5 · 5,519+ verified reviews</span>
         </div>
       </div>
     </div>

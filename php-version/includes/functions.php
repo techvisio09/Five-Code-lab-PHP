@@ -558,22 +558,52 @@ function log_vibe_change(string $vibe, string $source = 'manual'): void
     } catch (Throwable $e) { /* table missing — ignore */ }
 }
 
-// Brand logo — rounded gradient square with the FIRST LETTER of the company
-// name as a white monogram.  Gradient colours follow the active Brand Vibe
-// so the auto-generated mark always matches the storefront aesthetic.
-// Falls back to "M" if the company name is empty.  When the admin uploads a
-// custom logo via the Company Info tab, `$brandLogo` takes precedence in
+// Brand logo — when the active brand is "Fivecodelab Software" we emit a
+// custom PayPal-style mark (rounded navy square with a stylized "5" + a
+// yellow PayPal accent dot).  For any other brand we fall back to the
+// monogram-style SVG so the storefront is reusable.  When the admin uploads
+// a custom logo via the Company Info tab, `$brandLogo` takes precedence in
 // header.php / footer.php and this SVG is never rendered.
 function render_logo(int $size = 40, ?string $letter = null): string
 {
     if ($letter === null || $letter === '') {
         $name = function_exists('company_info') ? (company_info()['name'] ?? '') : '';
         if ($name === '' && defined('SITE_BRAND')) $name = SITE_BRAND;
-        $name = preg_replace('/^[^A-Za-z0-9]+/', '', trim($name));
+        $brandName = trim($name);
+        $name = preg_replace('/^[^A-Za-z0-9]+/', '', $brandName);
         $letter = $name !== '' ? mb_strtoupper(mb_substr($name, 0, 1)) : 'M';
     } else {
+        $brandName = '';
         $letter = mb_strtoupper(mb_substr($letter, 0, 1));
     }
+
+    // Custom Fivecodelab-branded mark (PayPal navy + signature yellow accent)
+    if (stripos($brandName, 'Fivecodelab') === 0) {
+        $id = 'fcl' . $size;
+        return '<svg class="brand-mark" width="' . $size . '" height="' . $size . '" viewBox="0 0 48 48" fill="none" role="img" aria-label="Fivecodelab Software" data-brand-mark="1">'
+            . '<defs>'
+            .   '<linearGradient id="' . $id . '_g" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">'
+            .     '<stop offset="0" stop-color="#0070BA"/>'
+            .     '<stop offset=".55" stop-color="#003087"/>'
+            .     '<stop offset="1" stop-color="#012169"/>'
+            .   '</linearGradient>'
+            .   '<radialGradient id="' . $id . '_hl" cx=".25" cy=".15" r=".75">'
+            .     '<stop offset="0" stop-color="rgba(255,255,255,.34)"/>'
+            .     '<stop offset="1" stop-color="rgba(255,255,255,0)"/>'
+            .   '</radialGradient>'
+            .   '<linearGradient id="' . $id . '_y" x1="0" y1="0" x2="0" y2="1">'
+            .     '<stop offset="0" stop-color="#FFD46B"/>'
+            .     '<stop offset="1" stop-color="#FFC439"/>'
+            .   '</linearGradient>'
+            . '</defs>'
+            . '<rect x="1.5" y="1.5" width="45" height="45" rx="11" fill="url(#' . $id . '_g)"/>'
+            . '<rect x="1.5" y="1.5" width="45" height="45" rx="11" fill="url(#' . $id . '_hl)"/>'
+            . '<path d="M18 13.5 h12 a1.5 1.5 0 0 1 0 3 h-9.2 l-1 5.6 c1.3 -.9 2.9 -1.4 4.6 -1.4 c4.7 0 8.4 3.5 8.4 8.2 c0 4.7 -3.7 8.6 -8.6 8.6 c-3.6 0 -6.7 -2 -8.1 -5 a1.5 1.5 0 1 1 2.7 -1.3 c.9 1.9 2.9 3.3 5.4 3.3 c3.2 0 5.6 -2.6 5.6 -5.6 c0 -3 -2.4 -5.2 -5.4 -5.2 c-1.7 0 -3.2 .8 -4.1 1.9 a1.5 1.5 0 0 1 -2.6 -1.1 z" fill="#fff"/>'
+            . '<circle cx="38.5" cy="36" r="3" fill="url(#' . $id . '_y)"/>'
+            . '<circle cx="38.5" cy="36" r="3" fill="none" stroke="rgba(255,255,255,.4)" stroke-width=".6"/>'
+            . '</svg>';
+    }
+
     $vibe = current_vibe();
     [$g0, $g1, $g2] = $vibe['gradient'];
     $radius = max(4, (int)round($vibe['radius'] / 14 * 13)); // scale 4-22px → SVG units
