@@ -5605,6 +5605,12 @@ elseif ($tab === 'reviews'):
           $pdo->exec("UPDATE customer_reviews SET admin_seen_at=NOW() WHERE rating IS NOT NULL AND rating <= 3 AND admin_seen_at IS NULL");
       } catch (Throwable $e) { /* table may not exist on fresh installs */ }
   }
+  // Email Link Sanity Test — paste any review URL → verify it parses correctly
+  // before sending a campaign.  Same parser path as /review.php (incl. legacy recovery).
+  $linkTest = null;
+  if (($_POST['action'] ?? '') === 'review_link_test') {
+      $linkTest = parse_review_url_for_admin((string)($_POST['review_url'] ?? ''));
+  }
   $w='WHERE cr.rating IS NOT NULL'; $args=[];
   if (in_array($sf,['published','hidden'],true)) { $w.=' AND cr.status=?'; $args[]=$sf; }
   $st = $pdo->prepare("SELECT cr.*, p.name AS product_name, p.image AS product_image, o.order_number
@@ -5620,6 +5626,136 @@ elseif ($tab === 'reviews'):
 ?>
   <h5 class="fw-bold mb-1">Customer Reviews <span class="text-muted fs-6">— only customers who responded</span></h5>
   <p class="text-muted small mb-3">Showing reviews where the customer submitted a rating. Pending invites are hidden by default.</p>
+
+  <!-- Email Link Sanity Test — paste any review URL, verify it parses correctly -->
+  <details class="link-sanity-test mb-4" <?= $linkTest ? 'open' : '' ?>>
+    <summary class="link-sanity-test-summary">
+      <i class="bi bi-link-45deg fs-5 me-2"></i>
+      <strong>Email Link Sanity Test</strong>
+      <span class="text-muted small ms-2 d-none d-md-inline">— paste any review URL to verify it parses correctly before sending a campaign</span>
+      <i class="bi bi-chevron-down link-sanity-test-chevron ms-auto"></i>
+    </summary>
+    <div class="link-sanity-test-body p-3">
+      <form method="post" class="d-flex flex-wrap gap-2 mb-3" data-testid="link-sanity-test-form">
+        <input type="hidden" name="action" value="review_link_test">
+        <input type="text" name="review_url" required class="form-control flex-grow-1"
+               placeholder="<?= esc(SITE_URL) ?>/review.php?t=…&rating=3"
+               value="<?= esc($linkTest['input'] ?? '') ?>"
+               style="min-width:280px;font-family:ui-monospace,Menlo,monospace;font-size:.85rem;"
+               data-testid="link-sanity-input">
+        <button class="btn btn-primary px-4" type="submit" data-testid="link-sanity-submit">
+          <i class="bi bi-check2-circle me-1"></i>Test link
+        </button>
+        <?php
+          // Convenience helper: drop a real, working URL onto the form so admin
+          // can see a "green" result without having to dig up a token first.
+          $sampleTok = $pdo->query("SELECT request_token FROM customer_reviews WHERE request_token IS NOT NULL AND request_token <> '' ORDER BY id DESC LIMIT 1")->fetchColumn();
+          if ($sampleTok):
+            $sampleUrl = rtrim(SITE_URL, '/') . '/review.php?t=' . $sampleTok . '&rating=5';
+        ?>
+          <button class="btn btn-outline-secondary" type="submit" name="review_url" value="<?= esc($sampleUrl) ?>" title="Loads a real token from the DB" data-testid="link-sanity-sample">
+            <i class="bi bi-arrow-clockwise me-1"></i>Use real sample URL
+          </button>
+        <?php endif; ?>
+      </form>
+
+      <?php if ($linkTest): ?>
+        <?php $okClass = $linkTest['ok'] ? 'success' : 'danger'; ?>
+        <div class="lst-result alert alert-<?= $okClass ?> mb-0" data-testid="link-sanity-result">
+          <div class="d-flex align-items-center mb-2">
+            <i class="bi bi-<?= $linkTest['ok'] ? 'check-circle-fill' : 'x-octagon-fill' ?> fs-4 me-2"></i>
+            <strong class="fs-6">
+              <?= $linkTest['ok']
+                  ? 'Link will work — review.php WILL render the form for this customer.'
+                  : 'Link will NOT work — the customer would see the "invalid token" page.' ?>
+            </strong>
+          </div>
+
+          <div class="row g-3 lst-grid">
+            <div class="col-md-6">
+              <div class="lst-field">
+                <small class="lst-label">Resolved token</small>
+                <code class="lst-value <?= $linkTest['token'] ? '' : 'text-muted' ?>" data-testid="lst-token"><?= esc($linkTest['token'] ?: '— none —') ?></code>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="lst-field">
+                <small class="lst-label">Pre-rating</small>
+                <span class="lst-value" data-testid="lst-rating">
+                  <?= $linkTest['rating'] > 0
+                      ? str_repeat('★', $linkTest['rating']) . str_repeat('☆', 5 - $linkTest['rating']) . ' (' . $linkTest['rating'] . '/5)'
+                      : '<span class="text-muted">— none —</span>' ?>
+                </span>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="lst-field">
+                <small class="lst-label">Legacy URL recovery</small>
+                <span class="lst-value">
+                  <?= $linkTest['recovered']
+                      ? '<span class="badge text-bg-warning">Triggered ✱</span>'
+                      : '<span class="badge text-bg-success-subtle">Not needed</span>' ?>
+                </span>
+              </div>
+            </div>
+
+            <?php if ($linkTest['review']): $r = $linkTest['review']; ?>
+              <div class="col-12">
+                <div class="lst-field lst-review">
+                  <small class="lst-label">Resolves to this customer_reviews row</small>
+                  <div class="lst-review-body">
+                    <strong data-testid="lst-customer-name"><?= esc($r['customer_name'] ?: '— no name —') ?></strong>
+                    <span class="text-muted">&lt;<?= esc($r['customer_email'] ?: 'no email') ?>&gt;</span>
+                    · Product: <strong><?= esc($r['product_name'] ?: $r['product_slug']) ?></strong>
+                    · Status: <code><?= esc($r['status']) ?></code>
+                    <?php if (!empty($r['rating'])): ?>
+                      · Already rated <strong class="text-warning">★ <?= (int)$r['rating'] ?>/5</strong>
+                    <?php endif; ?>
+                    <div class="mt-1 small">
+                      <a href="?tab=reviews&status=<?= esc($r['status']) ?>" class="me-2"><i class="bi bi-eye me-1"></i>Open in reviews list</a>
+                      <a href="<?= esc($linkTest['input']) ?>" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1"></i>Open the customer-facing page</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <?php endif; ?>
+
+            <?php foreach ($linkTest['errors'] as $err): ?>
+              <div class="col-12"><div class="lst-msg lst-err"><i class="bi bi-x-circle me-1"></i><?= esc($err) ?></div></div>
+            <?php endforeach; ?>
+            <?php foreach ($linkTest['warnings'] as $warn): ?>
+              <div class="col-12"><div class="lst-msg lst-warn"><i class="bi bi-exclamation-triangle me-1"></i><?= esc($warn) ?></div></div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      <?php endif; ?>
+    </div>
+  </details>
+
+  <style>
+    .link-sanity-test { background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%); border: 1px solid #e6e9ec; border-radius: 14px; overflow: hidden; }
+    [data-bs-theme="dark"] .link-sanity-test { background: linear-gradient(135deg, #142046 0%, #0F1B3F 100%); border-color: rgba(168,200,236,.16); }
+    .link-sanity-test-summary { padding: .85rem 1.1rem; cursor: pointer; list-style: none; display: flex; align-items: center; font-weight: 600; color: var(--pp-blue-dark, #003087); border-bottom: 1px solid transparent; transition: background .15s ease, border-color .15s ease; }
+    .link-sanity-test[open] .link-sanity-test-summary { border-bottom-color: #e6e9ec; background: rgba(0,112,186,.04); }
+    [data-bs-theme="dark"] .link-sanity-test[open] .link-sanity-test-summary { border-bottom-color: rgba(168,200,236,.16); background: rgba(124,211,255,.06); color: #fff; }
+    .link-sanity-test-summary::-webkit-details-marker { display: none; }
+    .link-sanity-test-chevron { transition: transform .2s ease; }
+    .link-sanity-test[open] .link-sanity-test-chevron { transform: rotate(180deg); }
+    .lst-field { background: #ffffff; border: 1px solid #e6e9ec; border-radius: 10px; padding: .7rem .85rem; height: 100%; }
+    [data-bs-theme="dark"] .lst-field { background: #182550; border-color: rgba(168,200,236,.18); }
+    .lst-label { display: block; font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #6c7378; margin-bottom: .25rem; }
+    [data-bs-theme="dark"] .lst-label { color: #A5B1CC; }
+    .lst-value { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .82rem; color: #0f172a; word-break: break-all; }
+    [data-bs-theme="dark"] .lst-value { color: #ffffff; }
+    .lst-value.text-muted { color: #94A0BC !important; font-style: italic; }
+    .lst-review-body { font-size: .85rem; line-height: 1.5; color: inherit; margin-top: .25rem; }
+    .lst-msg { padding: .6rem .85rem; border-radius: 10px; font-size: .85rem; font-weight: 500; }
+    .lst-err  { background: rgba(225,29,72,.08); color: #be123c; border: 1px solid rgba(225,29,72,.18); }
+    .lst-warn { background: rgba(255,196,57,.10); color: #92400e; border: 1px solid rgba(255,196,57,.32); }
+    [data-bs-theme="dark"] .lst-err  { background: rgba(225,29,72,.14); color: #fda4af; border-color: rgba(225,29,72,.4); }
+    [data-bs-theme="dark"] .lst-warn { background: rgba(255,196,57,.12); color: #FFD46B; border-color: rgba(255,196,57,.4); }
+    .lst-result { border-radius: 12px; }
+  </style>
 
   <div class="row g-3 mb-3">
     <div class="col-6 col-md-3"><div class="kpi-tile amber"><div class="kpi-icon"><i class="bi bi-star-fill"></i></div><div class="kpi-label">Avg Rating</div><div class="kpi-value"><?= number_format((float)($cnt['avg_r'] ?? 0), 1) ?> ★</div></div></div>

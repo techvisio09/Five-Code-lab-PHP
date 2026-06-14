@@ -666,6 +666,82 @@ function product_img_alt(array $p): string
     return $alt . ' | ' . SITE_BRAND;
 }
 
+/**
+ * Admin tool — "Email Link Sanity Test".
+ * Parses any review URL exactly the way /review.php does (including the
+ * legacy ?t=TOKEN?rating=N recovery path) and returns a structured report
+ * of token, rating, recovered status, warnings, errors and the matched
+ * customer_reviews row.  Used by the admin Reviews tab to verify any
+ * outbound template before sending a campaign.
+ */
+function parse_review_url_for_admin(string $url): array
+{
+    $out = [
+        'input' => $url, 'ok' => false, 'errors' => [], 'warnings' => [],
+        'token' => '', 'rating' => 0, 'recovered' => false,
+        'parsed_query' => [], 'review' => null,
+    ];
+    $url = trim($url);
+    if ($url === '') { $out['errors'][] = 'Empty URL.'; return $out; }
+    $parts = parse_url($url);
+    if ($parts === false) { $out['errors'][] = 'Malformed URL — parse_url() failed.'; return $out; }
+    if (!isset($parts['path']) || !preg_match('~/review\.php$~', $parts['path'])) {
+        $out['warnings'][] = 'Path is not "/review.php" — the URL may belong to a different endpoint.';
+    }
+    if (empty($parts['query'])) { $out['errors'][] = 'URL has no query string (?t=…).'; return $out; }
+    parse_str($parts['query'], $q);
+    $out['parsed_query'] = $q;
+    $raw = (string)($q['t'] ?? '');
+    if ($raw === '') { $out['errors'][] = 'Missing ?t= token parameter.'; return $out; }
+
+    // Legacy URL recovery — ?t=<token>?rating=N (double '?') falls through here.
+    $ratingFromBad = 0;
+    if (strpos($raw, '?') !== false) {
+        [$raw, $tail] = explode('?', $raw, 2);
+        parse_str($tail, $tailParams);
+        if (isset($tailParams['rating'])) $ratingFromBad = (int)$tailParams['rating'];
+        $out['warnings'][] = 'Malformed legacy URL detected (used "?" instead of "&" before "rating="). '
+                           . 'review.php auto-recovers, but please regenerate the template with "&rating=" '
+                           . 'so every email client / link unfurler resolves the link correctly.';
+        $out['recovered'] = true;
+    }
+    $token = trim($raw, " \t\n\r\0\x0B&?/");
+    $out['token'] = $token;
+
+    $rating = (int)($q['rating'] ?? $ratingFromBad);
+    if ($rating < 1 || $rating > 5) {
+        if (isset($q['rating']) || $ratingFromBad) {
+            $out['warnings'][] = 'rating parameter is out of range — expected 1-5; will be ignored.';
+        }
+        $rating = 0;
+    }
+    $out['rating'] = $rating;
+
+    try {
+        $stmt = db()->prepare('SELECT cr.*, p.name AS product_name
+                                 FROM customer_reviews cr
+                                 LEFT JOIN products p ON p.slug = cr.product_slug
+                                WHERE cr.request_token = ? LIMIT 1');
+        $stmt->execute([$token]);
+        $row = $stmt->fetch();
+    } catch (Throwable $e) {
+        $out['errors'][] = 'DB error: ' . $e->getMessage();
+        return $out;
+    }
+
+    if (!$row) {
+        $out['errors'][] = 'Token does not match any customer_reviews row. The link is invalid or has been deleted.';
+        return $out;
+    }
+
+    if (!empty($row['rating'])) {
+        $out['warnings'][] = 'This customer has ALREADY submitted a rating (' . (int)$row['rating'] . '/5). The page will still render and they can edit/re-submit.';
+    }
+    $out['review'] = $row;
+    $out['ok']     = true;
+    return $out;
+}
+
 // Exact + phrase + broad keyword variations generated per product (meta keywords)
 function product_keywords(array $p): string
 {

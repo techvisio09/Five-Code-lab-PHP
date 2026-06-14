@@ -2,9 +2,27 @@
 // Public customer review submission page (token-based, no login required).
 require_once __DIR__ . '/includes/functions.php';
 $pdo = db();
-$token = $_GET['t'] ?? '';
+
+// ---------------------------------------------------------------------------
+// LEGACY URL RECOVERY
+// Older email templates produced links like  ?t=<token>?rating=3  (double '?'
+// instead of '?' + '&'). PHP parses the whole thing as one query param, so
+// $_GET['t'] arrives as "<token>?rating=3" and $_GET['rating'] is missing.
+// We split the appended params back out so customers from those legacy links
+// can still leave feedback.
+// ---------------------------------------------------------------------------
+$rawToken = (string)($_GET['t'] ?? '');
+$ratingFromBadUrl = 0;
+if ($rawToken !== '' && strpos($rawToken, '?') !== false) {
+    [$rawToken, $tail] = explode('?', $rawToken, 2);
+    parse_str($tail, $tailParams);
+    if (isset($tailParams['rating'])) $ratingFromBadUrl = (int)$tailParams['rating'];
+}
+// Strip any stray separator chars / whitespace
+$token = trim($rawToken, " \t\n\r\0\x0B&?/");
+
 $review = null;
-if ($token) {
+if ($token !== '') {
     $r = $pdo->prepare('SELECT cr.*, p.name AS product_name, p.image AS product_image FROM customer_reviews cr LEFT JOIN products p ON p.slug=cr.product_slug WHERE cr.request_token=? LIMIT 1');
     $r->execute([$token]); $review = $r->fetch();
 }
@@ -31,7 +49,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && $review) {
 }
 
 // Pre-rating from the email-link star click (?rating=N). 0 = none selected.
-$preRating = (int)($_GET['rating'] ?? 0);
+// Falls back to whatever we recovered from the legacy malformed-URL parser above.
+$preRating = (int)($_GET['rating'] ?? $ratingFromBadUrl);
 if ($preRating < 1 || $preRating > 5) $preRating = 0;
 
 $pageTitle = 'Share Your Feedback · ' . esc(SITE_BRAND);
