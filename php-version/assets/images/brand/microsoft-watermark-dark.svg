@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="600" height="600" role="img" aria-label="Microsoft authorized reseller watermark">
+  <defs>
+    <linearGradient id="mw_g" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0"   stop-color="#0f172a"/>
+      <stop offset="1"   stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+  <!-- Microsoft 4-square logo, darkened for watermark use -->
+  <rect x="6"  y="6"  width="41" height="41" rx="2" fill="url(#mw_g)" opacity=".88"/>
+  <rect x="53" y="6"  width="41" height="41" rx="2" fill="url(#mw_g)" opacity=".82"/>
+  <rect x="6"  y="53" width="41" height="41" rx="2" fill="url(#mw_g)" opacity=".82"/>
+  <rect x="53" y="53" width="41" height="41" rx="2" fill="url(#mw_g)" opacity=".75"/>
+</svg>

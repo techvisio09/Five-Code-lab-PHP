@@ -26,9 +26,164 @@ function _pdf_dompdf(): Dompdf
     $o = new Options();
     $o->set('defaultFont',           'DejaVu Sans');   // ships with Dompdf
     $o->set('isHtml5ParserEnabled',  true);
-    $o->set('isRemoteEnabled',       false);           // we never load remote assets
+    $o->set('isRemoteEnabled',       true);            // allow remote product images
     $o->set('chroot',                __DIR__ . '/..'); // keep file access local
     return new Dompdf($o);
+}
+
+/**
+ * Download a remote image to local cache once, then return the cached path.
+ * Used so Dompdf can embed remote product imagery without making a live HTTP
+ * call on every PDF render.  Returns '' if the download fails.
+ */
+function _pdf_cache_image(string $url): string
+{
+    if ($url === '') return '';
+    if (str_starts_with($url, '/')) {
+        $local = __DIR__ . '/..' . $url;
+        return is_file($local) ? realpath($local) : '';
+    }
+    if (!preg_match('~^https?://~i', $url)) return '';
+    $dir = __DIR__ . '/../assets/images/cache';
+    if (!is_dir($dir)) @mkdir($dir, 0775, true);
+    $hash = sha1($url);
+    $ext  = strtolower(pathinfo(parse_url($url, PHP_URL_PATH) ?: '', PATHINFO_EXTENSION)) ?: 'jpg';
+    $ext  = in_array($ext, ['jpg','jpeg','png','webp','gif']) ? $ext : 'jpg';
+    $dst  = $dir . '/p_' . $hash . '.' . $ext;
+    if (is_file($dst) && filesize($dst) > 100) return realpath($dst);
+
+    $ctx = stream_context_create(['http' => ['timeout' => 6, 'user_agent' => 'Mozilla/5.0 PDFCache']]);
+    $body = @file_get_contents($url, false, $ctx);
+    if ($body === false || strlen($body) < 100) return '';
+    @file_put_contents($dst, $body);
+    return is_file($dst) ? realpath($dst) : '';
+}
+
+/**
+ * Stamp a watermark + tiny Office-app icon strip on every page of a Dompdf
+ * document.  page_script() is the only Dompdf approach that reliably draws
+ * positioned imagery on each page (CSS position:absolute with negative
+ * z-index gets silently dropped by Dompdf in some layouts).
+ *
+ *   • Centre watermark = the actual product the customer purchased
+ *     (first order item) — a soft, low-opacity hero behind the page body.
+ *   • Top ornament strip = tiny Microsoft Office app icons
+ *     (Word / Excel / PowerPoint / Outlook / Access) just below the title.
+ */
+function _pdf_apply_brand_layers(Dompdf $dompdf, string $productImageUrl = ''): void
+{
+    $canvas = $dompdf->getCanvas();
+    if (!$canvas) return;
+
+    $pageW = $canvas->get_width();
+    $pageH = $canvas->get_height();
+
+    // 1) Centre watermark — the purchased product, low opacity, dimmed
+    $wmPath = '';
+    if ($productImageUrl !== '') {
+        $wmPath = _pdf_cache_image($productImageUrl);
+    }
+
+    // 2) Tiny Office app icon ornament strip (top-right corner, under the brand block)
+    $apps = [
+        __DIR__ . '/../assets/images/cache/word.png',
+        __DIR__ . '/../assets/images/cache/excel.jpg',
+        __DIR__ . '/../assets/images/cache/powerpoint.png',
+        __DIR__ . '/../assets/images/cache/outlook.png',
+        __DIR__ . '/../assets/images/cache/access.png',
+    ];
+    $apps = array_values(array_filter($apps, 'is_file'));
+
+    // Build the page_script that fires once per page
+    $scriptLines = [];
+
+    if ($wmPath) {
+        $wmSize = 260.0; // hero centred mark — sized so it doesn't crowd BILL TO or totals
+        $wmX = ($pageW - $wmSize) / 2.0;
+        $wmY = ($pageH - $wmSize) / 2.0 + 80; // shifted noticeably below page centre, sits in the empty band under the items table
+        // We bake opacity into the source PNG (set_opacity isn't reliable for images on CPDF),
+        // so re-encode the product image to a soft alpha version once, on demand.
+        $softPath = _pdf_make_soft_image($wmPath, 0.09);
+        if ($softPath) {
+            $sw = var_export($softPath, true);
+            $scriptLines[] = "\$pdf->image($sw, $wmX, $wmY, $wmSize, $wmSize);";
+        }
+    }
+
+    if (!empty($apps)) {
+        // 26-pt icons spaced 8-pt apart along the bottom-right ornament strip.
+        // The icons themselves communicate "Compatible with Microsoft Office apps"
+        // — no text label is needed (and Dompdf's text() API requires a resolved
+        // font object that isn't trivially available inside page_script).
+        $iconSize = 26.0;
+        $gap      = 8.0;
+        $stripW   = (count($apps) * ($iconSize + $gap)) - $gap;
+        $stripX   = ($pageW - $stripW) / 2.0;   // centered horizontally
+        $stripY   = $pageH - 60;                // bottom margin = 60pt
+        foreach ($apps as $i => $ap) {
+            $x = $stripX + $i * ($iconSize + $gap);
+            $ap = realpath($ap) ?: $ap;
+            $scriptLines[] = "\$pdf->image(" . var_export($ap, true) . ", $x, $stripY, $iconSize, $iconSize);";
+        }
+    }
+
+    if (empty($scriptLines)) return;
+    $canvas->page_script(implode("\n", $scriptLines));
+}
+
+/**
+ * Pre-blend a product image down to a given alpha so it renders as a soft
+ * watermark inside the PDF.  Cached so the resize/composite only happens once.
+ */
+function _pdf_make_soft_image(string $sourcePath, float $alpha = 0.10): string
+{
+    if (!is_file($sourcePath)) return '';
+    $alpha = max(0.02, min(1.0, $alpha));
+    $cacheDir = __DIR__ . '/../assets/images/cache/soft';
+    if (!is_dir($cacheDir)) @mkdir($cacheDir, 0775, true);
+    $cached = $cacheDir . '/' . sha1($sourcePath . '|' . $alpha) . '.png';
+    if (is_file($cached) && filesize($cached) > 100) return realpath($cached);
+    if (!function_exists('imagecreatefromstring')) return $sourcePath; // GD not available
+
+    $raw = @file_get_contents($sourcePath);
+    if ($raw === false) return $sourcePath;
+    $src = @imagecreatefromstring($raw);
+    if (!$src) return $sourcePath;
+
+    $w = imagesx($src); $h = imagesy($src);
+    // Resize down to <= 600px for smaller PDF footprint
+    $max = 600;
+    $scale = min(1.0, $max / max($w, $h));
+    $tw = (int)round($w * $scale); $th = (int)round($h * $scale);
+    $dst = imagecreatetruecolor($tw, $th);
+    imagealphablending($dst, false);
+    imagesavealpha($dst, true);
+    $transparent = imagecolorallocatealpha($dst, 255, 255, 255, 127);
+    imagefilledrectangle($dst, 0, 0, $tw, $th, $transparent);
+    imagealphablending($dst, true);
+    imagecopyresampled($dst, $src, 0, 0, 0, 0, $tw, $th, $w, $h);
+    imagedestroy($src);
+
+    // Bake alpha by iterating pixels — slow but only runs once per image
+    imagealphablending($dst, false);
+    imagesavealpha($dst, true);
+    for ($y = 0; $y < $th; $y++) {
+        for ($x = 0; $x < $tw; $x++) {
+            $c = imagecolorat($dst, $x, $y);
+            $a = ($c >> 24) & 0x7F;
+            $r = ($c >> 16) & 0xFF;
+            $g = ($c >> 8)  & 0xFF;
+            $b = $c & 0xFF;
+            // existing alpha (0=opaque, 127=transparent) → opacity 0..1
+            $existingOpacity = 1.0 - ($a / 127.0);
+            $newOpacity = $existingOpacity * $alpha;
+            $newA = (int)round((1.0 - $newOpacity) * 127);
+            imagesetpixel($dst, $x, $y, imagecolorallocatealpha($dst, $r, $g, $b, $newA));
+        }
+    }
+    imagepng($dst, $cached, 8);
+    imagedestroy($dst);
+    return is_file($cached) ? realpath($cached) : $sourcePath;
 }
 
 /**
@@ -79,55 +234,84 @@ function _pdf_shell(array $ctx, string $bodyHtml): string
 <!doctype html>
 <html><head><meta charset="utf-8">
 <style>
-  @page { margin: 56px 48px; }
+  @page { margin: 56px 48px 100px; }   /* extra bottom margin for the app-icon ornament */
   body  { font-family: 'DejaVu Sans', Helvetica, Arial, sans-serif; font-size: 10.5pt; color: #1f2937; }
-  h1    { font-size: 22pt; font-weight: 700; margin: 0 0 14px; color: #0f172a; letter-spacing: .3px; }
+
+  /* Title block — refined PayPal-style header */
+  .doc-title-wrap { margin: 0 0 10px; }
+  h1.doc-title { font-size: 28pt; font-weight: 800; margin: 0 0 6px; color: #003087; letter-spacing: -.4px; }
+  .doc-title-rule { width: 56px; height: 4px; background: #FFC439; border-radius: 2px; margin: 0 0 18px; }
+  .doc-sub { font-size: 8pt; letter-spacing: 1.4px; text-transform: uppercase; font-weight: 700; color: #6c7378; margin: 0 0 4px; }
+
   .head-grid { width: 100%; border-collapse: collapse; margin-bottom: 26px; }
   .head-grid td { vertical-align: top; }
-  .head-meta { width: 50%; }
+  .head-meta { width: 55%; }
   .head-meta table { width: 100%; border-collapse: collapse; font-size: 9.5pt; color: #475569; }
-  .head-meta table td { padding: 2px 0; }
-  .head-meta table td.r { text-align: right; color: #0f172a; font-weight: 600; }
-  .head-brand { width: 50%; text-align: right; }
-  .head-brand .brand-line { margin-top: 6px; font-size: 9pt; color: #64748b; line-height: 1.45; }
+  .head-meta table td { padding: 3px 0; }
+  .head-meta table td.r { text-align: right; color: #003087; font-weight: 700; font-family: 'DejaVu Sans Mono', monospace; }
+  .head-brand { width: 45%; text-align: right; }
+  .head-brand .brand-line { margin-top: 8px; font-size: 9pt; color: #6c7378; line-height: 1.55; }
+  .head-brand .brand-line strong { color: #003087; font-size: 10pt; }
 
-  .from-bill { width: 100%; border-collapse: collapse; margin-bottom: 22px; }
+  .from-bill { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
   .from-bill td { vertical-align: top; width: 50%; padding-right: 12px; font-size: 9.5pt; color: #1f2937; }
-  .from-bill .label { font-size: 8pt; text-transform: uppercase; letter-spacing: 1.2px; color: #94a3b8; font-weight: 700; margin-bottom: 4px; }
-  .from-bill .bold  { color: #0f172a; font-weight: 700; }
+  .from-bill .label { font-size: 7.5pt; text-transform: uppercase; letter-spacing: 1.4px; color: #6c7378; font-weight: 800; margin-bottom: 6px; }
+  .from-bill .bold  { color: #003087; font-weight: 700; }
 
-  .amount-banner { background: #f8fafc; border-left: 4px solid #06b6d4; padding: 14px 16px; margin-bottom: 22px; }
-  .amount-banner .amt { font-size: 18pt; font-weight: 700; color: #0f172a; }
-  .amount-banner .sub { font-size: 9pt; color: #64748b; margin-top: 2px; }
+  /* Amount banner — PayPal navy + signature yellow accent */
+  .amount-banner { background: #F5F9FD; border-left: 4px solid #0070BA; padding: 16px 18px; margin-bottom: 22px; border-radius: 0 6px 6px 0; }
+  .amount-banner .amt { font-size: 20pt; font-weight: 800; color: #003087; letter-spacing: -.3px; }
+  .amount-banner .sub { font-size: 9pt; color: #6c7378; margin-top: 4px; line-height: 1.5; }
 
   table.items, table.payhist { width: 100%; border-collapse: collapse; margin-bottom: 22px; }
-  table.items th, table.items td, table.payhist th, table.payhist td { padding: 9px 4px; font-size: 9.5pt; }
-  table.items thead, table.payhist thead { border-bottom: 2px solid #0f172a; }
-  table.items th, table.payhist th { text-align: left; font-weight: 700; color: #0f172a; font-size: 9pt; text-transform: uppercase; letter-spacing: .5px; }
-  table.items td, table.payhist td { border-bottom: 1px solid #e2e8f0; }
-  table.items td.num, table.items th.num, table.payhist td.num, table.payhist th.num { text-align: right; }
+  table.items th, table.items td, table.payhist th, table.payhist td { padding: 10px 6px; font-size: 9.5pt; }
+  table.items thead, table.payhist thead { border-bottom: 2px solid #003087; background: #F5F9FD; }
+  table.items th, table.payhist th { text-align: left; font-weight: 800; color: #003087; font-size: 8.5pt; text-transform: uppercase; letter-spacing: .8px; padding-top: 12px; padding-bottom: 12px; }
+  table.items td, table.payhist td { border-bottom: 1px solid #E6E9EC; }
+  table.items td.num, table.items th.num, table.payhist td.num, table.payhist th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.items tbody tr td:first-child { font-weight: 600; color: #1f2937; }
+
   .totals { width: 50%; margin-left: 50%; border-collapse: collapse; font-size: 10pt; }
-  .totals td { padding: 5px 4px; }
-  .totals td.label { color: #475569; }
-  .totals td.value { text-align: right; color: #0f172a; font-weight: 600; }
-  .totals tr.total-row td { border-top: 2px solid #0f172a; padding-top: 9px; font-size: 11.5pt; font-weight: 700; color: #0f172a; }
-  .totals tr.amount-paid td { padding-top: 9px; color: #047857; font-weight: 700; }
-  .totals tr.amount-due td { padding-top: 9px; color: #b91c1c; font-weight: 700; }
+  .totals td { padding: 6px 4px; }
+  .totals td.label { color: #6c7378; }
+  .totals td.value { text-align: right; color: #003087; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .totals tr.total-row td { border-top: 2px solid #003087; padding-top: 11px; font-size: 12pt; font-weight: 800; color: #003087; }
+  .totals tr.amount-paid td { padding-top: 11px; color: #047857; font-weight: 800; }
+  .totals tr.amount-due td { padding-top: 11px; color: #b91c1c; font-weight: 800; }
 
   .statement {
-    background: #fffbeb; border-left: 3px solid #f59e0b; padding: 10px 14px;
-    border-radius: 4px; margin: 22px 0; font-size: 9.5pt; color: #92400e;
+    background: #FFFBEB; border-left: 3px solid #FFC439; padding: 12px 16px;
+    border-radius: 0 6px 6px 0; margin: 24px 0; font-size: 9.5pt; color: #78350F;
   }
-  .statement .lbl { font-weight: 700; color: #78350f; }
+  .statement .lbl { font-weight: 800; color: #533F03; }
+
+  /* Ornament strip label (icons themselves are drawn via canvas page_script) */
+  .ms-ornament-label {
+    text-align: center;
+    margin-top: 30px;
+    padding-top: 14px;
+    border-top: 1px solid #E6E9EC;
+    font-size: 7pt;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: #94A0BC;
+    font-weight: 700;
+  }
+  .ms-ornament-label .accent { color: #FFC439; }
 
   .footer {
-    margin-top: 30px; padding-top: 14px; border-top: 1px solid #e2e8f0;
-    font-size: 8pt; color: #94a3b8; line-height: 1.6;
+    margin-top: 14px;
+    font-size: 8pt; color: #94A0BC; line-height: 1.6; text-align: center;
   }
+  .footer .legal { display: block; margin-top: 4px; font-size: 7.5pt; color: #B7BECC; }
 </style>
 </head>
 <body>
-  <h1>{$docTitle}</h1>
+  <div class="doc-title-wrap">
+    <div class="doc-sub">{$brand}</div>
+    <h1 class="doc-title">{$docTitle}</h1>
+    <div class="doc-title-rule"></div>
+  </div>
   <table class="head-grid"><tr>
     <td class="head-meta">
       <table>
@@ -138,7 +322,7 @@ function _pdf_shell(array $ctx, string $bodyHtml): string
     <td class="head-brand">
       {$logoTag}
       <div class="brand-line">
-        <strong style="color:#0f172a;">{$brand}</strong><br>
+        <strong>{$brand}</strong><br>
         {$brandAddr}<br>
         {$brandEm}
       </div>
@@ -152,8 +336,12 @@ function _pdf_shell(array $ctx, string $bodyHtml): string
 
   {$bodyHtml}
 
+  <div class="ms-ornament-label">
+    <span class="accent">★</span> &nbsp; Compatible with Microsoft Office 365, 2024, 2021, 2019 &nbsp; <span class="accent">★</span>
+  </div>
   <div class="footer">
-    Questions? Reply to this email or visit our support page. Thanks for choosing {$brand}.
+    Questions? Reply to this email or visit our support page. <strong>Thanks for choosing {$brand}.</strong>
+    <span class="legal">Microsoft®, Office® and Windows® are trademarks of Microsoft Corporation. {$brand} is independent of and not affiliated with Microsoft Corporation.</span>
   </div>
 </body></html>
 HTML;
@@ -245,6 +433,13 @@ function generate_receipt_pdf(array $order, array $items, ?array $payment = null
     $dompdf = _pdf_dompdf();
     $dompdf->loadHtml($html, 'UTF-8');
     $dompdf->setPaper('letter', 'portrait');
+    // Brand layers: purchased product as soft centre watermark + tiny Office app icon strip
+    $heroProductImg = (string)($items[0]['image'] ?? '');
+    if ($heroProductImg === '' && !empty($items[0]['product_slug'])) {
+        $p = function_exists('get_product') ? get_product($items[0]['product_slug']) : null;
+        if ($p && !empty($p['image'])) $heroProductImg = (string)$p['image'];
+    }
+    _pdf_apply_brand_layers($dompdf, $heroProductImg);
     $dompdf->render();
     return $dompdf->output();
 }
@@ -321,6 +516,13 @@ function generate_invoice_pdf(array $order, array $items): string
     $dompdf = _pdf_dompdf();
     $dompdf->loadHtml($html, 'UTF-8');
     $dompdf->setPaper('letter', 'portrait');
+    // Brand layers: purchased product as soft centre watermark + tiny Office app icon strip
+    $heroProductImg = (string)($items[0]['image'] ?? '');
+    if ($heroProductImg === '' && !empty($items[0]['product_slug'])) {
+        $p = function_exists('get_product') ? get_product($items[0]['product_slug']) : null;
+        if ($p && !empty($p['image'])) $heroProductImg = (string)$p['image'];
+    }
+    _pdf_apply_brand_layers($dompdf, $heroProductImg);
     $dompdf->render();
     return $dompdf->output();
 }
