@@ -1,9 +1,17 @@
 # =============================================================================
-# Maventech Admin Panel — Apache hardening (cPanel / Plesk / shared hosting)
+# Fivecodelab Software — Apache hardening (cPanel / Plesk / shared hosting)
 # =============================================================================
 
 # ---- Force UTF-8 ----
 AddDefaultCharset UTF-8
+
+# ---- Dynamic SEO endpoints (adapt to whatever the live host is) ----
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^sitemap\.xml$       sitemap-xml.php      [L]
+    RewriteRule ^merchant-feed\.xml$ merchant-feed.php    [L]
+    RewriteRule ^robots\.txt$        robots-dynamic.php   [L]
+</IfModule>
 
 # ---- Block direct access to sensitive files ----
 <FilesMatch "^(database\.sql|start\.sh|seed-templates\.php|router\.php|composer\.(json|lock))$">

@@ -101,6 +101,87 @@ include __DIR__ . '/includes/header.php';
       <?php endif; ?>
       <div class="post-content" itemprop="articleBody"><?= $post['content'] /* trusted HTML seeded from database.sql */ ?></div>
     </article>
+
+    <?php
+    // ============== INTERNAL LINKING (SEO boost) ==============
+    // Pull 3-4 related posts (same category if possible) + 3 top products
+    // for the same market.  Internal links pass link equity and help AI
+    // engines map relationships across the site.
+    try {
+        $relatedPosts = db()->prepare(
+            "SELECT id, title, image, read_time, date
+             FROM blog_posts
+             WHERE id <> ?
+             ORDER BY STR_TO_DATE(date, '%b %e, %Y') DESC, id DESC
+             LIMIT 4"
+        );
+        $relatedPosts->execute([$post['id']]);
+        $relatedPosts = $relatedPosts->fetchAll();
+        $topProducts = db()->query(
+            "SELECT slug, name, price, image, platform
+             FROM products
+             WHERE " . active_regions_sql_in('region') . "
+             ORDER BY reviews DESC, rating DESC LIMIT 3"
+        )->fetchAll();
+    } catch (Throwable $e) {
+        $relatedPosts = $topProducts = [];
+    }
+    ?>
+
+    <?php if ($relatedPosts): ?>
+      <section class="mt-5" aria-labelledby="related-articles-heading">
+        <h2 id="related-articles-heading" class="h5 fw-bold mb-3"><i class="bi bi-journals me-2 text-primary"></i>More guides you might like</h2>
+        <div class="row g-3">
+          <?php foreach ($relatedPosts as $rp): ?>
+            <div class="col-md-6 col-lg-3">
+              <a href="blog-post.php?id=<?= esc($rp['id']) ?>" class="card h-100 text-decoration-none related-post-card" data-testid="related-post-<?= esc($rp['id']) ?>">
+                <?php if (!empty($rp['image'])): ?>
+                  <img src="<?= esc($rp['image']) ?>" class="card-img-top" loading="lazy" decoding="async"
+                       alt="<?= esc($rp['title']) ?> — read this related article"
+                       style="aspect-ratio:16/10;object-fit:cover;">
+                <?php endif; ?>
+                <div class="card-body p-3">
+                  <div class="fw-semibold small" style="color:#1e3a8a;line-height:1.35;"><?= esc($rp['title']) ?></div>
+                  <div class="text-muted" style="font-size:11px;margin-top:6px;"><?= esc($rp['date']) ?> · <?= esc($rp['read_time']) ?></div>
+                </div>
+              </a>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </section>
+    <?php endif; ?>
+
+    <?php if ($topProducts): ?>
+      <section class="mt-5" aria-labelledby="top-products-heading">
+        <h2 id="top-products-heading" class="h5 fw-bold mb-3"><i class="bi bi-bag-check me-2 text-success"></i>Best-selling products mentioned in this guide</h2>
+        <div class="row g-3">
+          <?php foreach ($topProducts as $tp): ?>
+            <div class="col-md-4">
+              <a href="product.php?slug=<?= esc($tp['slug']) ?>" class="card h-100 text-decoration-none related-product-card" data-testid="related-product-<?= esc($tp['slug']) ?>">
+                <?php if (!empty($tp['image'])): ?>
+                  <img src="<?= esc($tp['image']) ?>" class="card-img-top p-3" loading="lazy" decoding="async"
+                       alt="<?= esc($tp['name']) ?> — buy from <?= esc(SITE_BRAND) ?>"
+                       style="aspect-ratio:1/1;object-fit:contain;background:#f8fafc;">
+                <?php endif; ?>
+                <div class="card-body p-3">
+                  <div class="fw-semibold small" style="color:#1e3a8a;line-height:1.35;"><?= esc($tp['name']) ?></div>
+                  <div class="d-flex justify-content-between align-items-center mt-2">
+                    <strong style="color:#0070BA;"><?= esc(region_money((float)$tp['price'])) ?></strong>
+                    <small class="text-muted"><?= esc($tp['platform']) ?></small>
+                  </div>
+                </div>
+              </a>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </section>
+    <?php endif; ?>
+
+    <style>
+      .related-post-card, .related-product-card { transition: transform .15s ease, box-shadow .2s ease; border:1px solid #e5e7eb; }
+      .related-post-card:hover, .related-product-card:hover { transform: translateY(-3px); box-shadow:0 8px 22px rgba(15,23,42,.10); border-color:#3b82f6; }
+    </style>
+
     <hr class="my-4">
     <div class="card p-4 text-center">
       <h5 class="fw-bold">Ready to upgrade your software?</h5>

@@ -56,25 +56,27 @@ Rebrand the existing storefront from "Maventech Software" to **Fivecodelab Softw
 - **Review URL bug fix** — `/review.php` now parses both proper (`?t=TOK&rating=N`) and legacy (`?t=TOK?rating=N`) URLs. DB swept for stale templates; source-code audit shows zero remaining bad patterns.
 - **Admin "Email Link Sanity Test" tool** — collapsible card at the top of the Reviews tab in `/admin.php` lets admins paste any review URL and instantly see (a) whether it parses, (b) the resolved token, (c) the pre-selected star rating, (d) which `customer_reviews` row it lands on, (e) whether the legacy-URL recovery path was triggered, plus errors/warnings. One-click "Use real sample URL" button auto-loads a real DB token for a green-path test. Helper lives at `includes/functions.php::parse_review_url_for_admin()` and runs the exact same parser as `review.php`, so the test result is a 100% faithful preview of production behaviour.
 
-## AI SEO Centre + Auto-Blogger (2026-06-14)
+## AI SEO Centre + Multi-Market Auto-Blogger (2026-06-14)
 - **AI SEO Centre admin panel** (`/admin.php?tab=seo`) — added to a new **Growth** sidebar group, powered by Claude Sonnet 4.6 via the Emergent Universal Key.
-  - Coverage KPIs: product %, blog %, total AI-published posts, last run.
-  - One-click "Run full pipeline" button (AI meta refresh + sitemap + llms-full.txt + IndexNow/Bing/Yandex pings).
+  - **Redesigned dashboard UI** (purple AI aesthetic): hero card with "▶ Run now", 5-column health stats panel (Last run, IndexNow, LLM refresh, Engines pinged, Health), live feed of all AI-published posts, collapsible Manual Controls.
+  - One-click "Run now" button (AI meta refresh + sitemap + llms-full.txt + IndexNow/Bing/Yandex pings).
   - Per-host IndexNow key auto-generated + `<key>.txt` published in webroot.
-  - Auto-schedule card: server cron command + tokenised HTTP cron URL for external schedulers.
-  - Recent runs history table.
-- **AI Auto-Blogger (hands-free, one post per calendar day)** — new flagship feature:
-  - Picks the most relevant un-covered featured product (skips anything blogged in last 90 days).
-  - Claude Sonnet 4.6 writes a 600-900 word editorial-style guide (lead dek + 2-3 H2 sections + bullet list + product CTA), titled by the AI.
-  - Auto-inserted into `blog_posts` with the next available numeric id, immediately live at `/blog-post.php?id=N` with full Article JSON-LD.
+  - Auto-schedule card: server cron command + tokenised HTTP cron URL with **copy-to-clipboard helper** and "keep secret" warning.
+- **AI Multi-Market Auto-Blogger** — flagship feature:
+  - Targets **4 markets** (US, UK, AU, CA). Australia (AU) added to `regions` table via idempotent migration.
+  - **5-6 fresh posts published per day** (configurable via `seo_ai_daily_post_cap`, hard ceiling 6). Pass 1: one post per market in rotation. Pass 2: fill remaining slots by rotating markets.
+  - **Localized content**: each post is written with market-appropriate spelling (American/British/Australian/Canadian English), currency symbol (`$`/`£`/`A$`/`C$`), and references (sales tax, VAT, GST, HST/PST).
+  - Picks the most relevant un-covered featured product per market (skips anything blogged in that market in last 90 days).
+  - Claude Sonnet 4.6 writes a 600-900 word editorial-style guide with lead dek + 2-3 H2 sections + product CTA, titled by the AI.
+  - Auto-inserted into `blog_posts` with the next available numeric id and a `region` column. Immediately live at `/blog-post.php?id=N` with full Article JSON-LD.
+  - Each post tagged with a `region` column in `seo_ai_blog_log`.
   - Daily cap enforced via `seo_ai_blog_log` table (`WHERE DATE(created_at) = CURDATE()`).
-  - Big yellow "AI just published" alert in the SEO Centre with View / Got it, dismiss buttons.
-  - Toast notification pops on **every admin page** until acknowledged.
-  - Red badge on the sidebar "AI SEO Centre" link with unread count.
-  - Manual override button "Generate one now" (bypasses the per-day cap if needed).
-  - Recent AI-written posts history table.
-  - New post URL submitted to IndexNow immediately + sitemap regenerated on the fly.
-- **Daily background runner registered in `start.sh`** — kicks off 90s after boot then every 24h. Idempotent (content-hash drift detection + per-day caps), so safe to re-run.
+  - **Region pills** (US/UK/AU/CA) coloured per market in the admin live feed.
+- **Notification system** — purple/violet alert in SEO Centre, orange toast on every admin page until acknowledged, red badge on the sidebar "AI SEO Centre" link with unread count, plus "X pending review" / "all reviewed" status in the live feed header.
+- **Daily background runner** registered in `start.sh` (90s warmup + every 24h loop). Idempotent — content-hash drift detection + per-day caps + per-market 90-day cooldown.
+- **Telemetry**: each pipeline run records LLM call count + estimated tokens + IndexNow URL count + sitemap URL count, surfaced in the admin stats panel.
+- **Production-ready**: All schema migrations are idempotent (start.sh + `seo_ensure_table` self-heal). Tested 100% green via testing_agent_v3_fork (frontend + backend + sitemap + llms-full + market localization). No hardcoded URLs (uses `site_url()` everywhere).
+- **P1 backlog cleanup** verified — DB sweep returned zero "Maventech" leftovers in blog_posts, pages, faqs, products, settings, or email_templates.
 
 ## Test Status
 - Smoke test screenshots: home + footer band — PayPal theme is rendering correctly

@@ -234,6 +234,22 @@ function seo_ensure_table(): void
     // Safety: backfill region column on existing installs (idempotent)
     try { db()->exec("ALTER TABLE seo_ai_blog_log ADD COLUMN IF NOT EXISTS region VARCHAR(8) NOT NULL DEFAULT 'US' AFTER title"); } catch (Throwable $e) {}
     try { db()->exec("ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS region VARCHAR(8) NOT NULL DEFAULT '' AFTER image"); } catch (Throwable $e) {}
+
+    // AI Citation Tracker — stores what AI engines say about the brand
+    db()->exec("CREATE TABLE IF NOT EXISTS seo_ai_citations (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        engine VARCHAR(40) NOT NULL,
+        engine_model VARCHAR(80) NOT NULL DEFAULT '',
+        query_text VARCHAR(500) NOT NULL,
+        response_text MEDIUMTEXT,
+        brand_mentioned TINYINT(1) NOT NULL DEFAULT 0,
+        product_mentions INT NOT NULL DEFAULT 0,
+        sentiment VARCHAR(20) NOT NULL DEFAULT 'neutral',
+        accuracy_score TINYINT NOT NULL DEFAULT 0,
+        checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_checked (checked_at),
+        KEY idx_engine (engine)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 
 function seo_get_meta(string $kind, string $refId): array
@@ -711,3 +727,152 @@ function seo_ai_acknowledge_all_blog_posts(): void
     seo_ensure_table();
     db()->exec('UPDATE seo_ai_blog_log SET acknowledged_at = NOW() WHERE acknowledged_at IS NULL');
 }
+
+// =====================================================================
+//  AI CITATION TRACKER
+//  --------------------------------------------------------------------
+//  Once a week, ask the major AI engines what they say about the brand
+//  and store the responses.  Lets the admin see whether ChatGPT,
+//  Claude, Gemini, etc. actually cite the catalog — and whether the
+//  cited products + prices are accurate.
+//
+//  Engines polled (all via the Emergent Universal Key):
+//   - "ChatGPT-4o"      → gpt-4o
+//   - "ChatGPT-5"       → gpt-5
+//   - "Claude Sonnet"   → claude-sonnet-4-6
+//   - "Gemini 2"        → gemini-2.5-flash
+//   - "Copilot (GPT)"   → gpt-4o-mini (acts as Microsoft Copilot proxy)
+// =====================================================================
+
+function seo_citation_engines(): array
+{
+    return [
+        ['key' => 'chatgpt-4',    'label' => 'ChatGPT (GPT-4.1)', 'model' => 'gpt-4.1',                'icon' => 'bi-chat-square-text-fill', 'maxtok' => 800],
+        ['key' => 'chatgpt-5',    'label' => 'ChatGPT (GPT-5.2)', 'model' => 'gpt-5.2',                'icon' => 'bi-stars',                 'maxtok' => 2200],
+        ['key' => 'claude',       'label' => 'Claude Sonnet',     'model' => 'claude-sonnet-4-6',      'icon' => 'bi-robot',                 'maxtok' => 800],
+        ['key' => 'gemini',       'label' => 'Google Gemini',     'model' => 'gemini/gemini-2.5-flash','icon' => 'bi-gem',                   'maxtok' => 800],
+        ['key' => 'copilot',      'label' => 'MS Copilot (4o-mini)','model' => 'gpt-4o-mini',          'icon' => 'bi-microsoft',             'maxtok' => 800],
+    ];
+}
+
+function seo_citation_queries(): array
+{
+    // Real-world questions a buyer would type into an AI engine
+    return [
+        'What does ' . SITE_BRAND . ' sell?',
+        'Is ' . SITE_BRAND . ' a legitimate Microsoft software reseller?',
+        'Where can I buy a genuine Microsoft Office 2024 license online?',
+        'Best place to buy Windows 11 Pro license keys with instant delivery in the US, UK, AU, and Canada?',
+        'Compare authorised Microsoft Office resellers for lifetime licences.',
+    ];
+}
+
+function seo_citation_ask_engine(string $model, string $query, int $maxTokens = 800): string
+{
+    $system = 'You are an AI assistant answering a real consumer search query. '
+            . 'Answer concisely (90-160 words) in a helpful, factual tone. '
+            . 'If you know specific reseller brands, products, or prices, name them. '
+            . 'If you do not know, say so honestly. Do NOT add disclaimers about being an AI.';
+    return seo_llm_complete($system, $query, $maxTokens, $model);
+}
+
+function seo_citation_score_response(string $response): array
+{
+    $brandRe = '/' . preg_quote(SITE_BRAND, '/') . '|fivecodelab|fivecode\s?lab/i';
+    $brandMentioned = (bool)preg_match($brandRe, $response);
+    // Count product family mentions
+    $families = ['Microsoft Office', 'Windows 11', 'Windows 10', 'Office 2024', 'Office 2021',
+                 'Office 2019', 'Norton', 'Bitdefender', 'McAfee', 'Project Pro', 'Visio'];
+    $count = 0;
+    foreach ($families as $f) {
+        if (stripos($response, $f) !== false) $count++;
+    }
+    // Naive sentiment
+    $sent = 'neutral';
+    if (preg_match('/legitimate|authorised|authorized|reputable|genuine|trusted|safe|recommend/i', $response)) $sent = 'positive';
+    if (preg_match('/scam|fake|illegitimate|avoid|fraud|untrusted|risky/i', $response)) $sent = 'negative';
+    // Accuracy heuristic: brand mentioned + ≥2 product families + positive = full marks
+    $acc = 0;
+    if ($brandMentioned)     $acc += 50;
+    if ($count >= 2)         $acc += 30;
+    if ($sent === 'positive') $acc += 20;
+    return [
+        'brand_mentioned'  => $brandMentioned ? 1 : 0,
+        'product_mentions' => $count,
+        'sentiment'        => $sent,
+        'accuracy_score'   => min(100, $acc),
+    ];
+}
+
+function seo_citation_run(?int $maxEngines = null, ?int $maxQueries = null): array
+{
+    seo_ensure_table();
+    $engines = seo_citation_engines();
+    $queries = seo_citation_queries();
+    if ($maxEngines !== null) $engines = array_slice($engines, 0, max(1, $maxEngines));
+    if ($maxQueries !== null) $queries = array_slice($queries, 0, max(1, $maxQueries));
+
+    $rows = [];
+    foreach ($engines as $e) {
+        foreach ($queries as $q) {
+            try {
+                $maxTok = (int)($e['maxtok'] ?? 800);
+                $resp = seo_citation_ask_engine($e['model'], $q, $maxTok);
+                if (!$resp) continue;
+                $scored = seo_citation_score_response($resp);
+                db()->prepare('INSERT INTO seo_ai_citations (engine, engine_model, query_text, response_text, brand_mentioned, product_mentions, sentiment, accuracy_score) VALUES (?,?,?,?,?,?,?,?)')
+                    ->execute([
+                        $e['key'], $e['model'], $q,
+                        mb_substr($resp, 0, 4000),
+                        $scored['brand_mentioned'], $scored['product_mentions'],
+                        $scored['sentiment'], $scored['accuracy_score'],
+                    ]);
+                $rows[] = ['engine' => $e['label'], 'query' => $q] + $scored;
+            } catch (Throwable $ex) {
+                $rows[] = ['engine' => $e['label'], 'query' => $q, 'error' => $ex->getMessage()];
+            }
+        }
+    }
+    return ['runs' => count($rows), 'rows' => $rows];
+}
+
+function seo_citation_recent(int $limit = 25): array
+{
+    seo_ensure_table();
+    $s = db()->prepare('SELECT * FROM seo_ai_citations ORDER BY id DESC LIMIT ?');
+    $s->bindValue(1, $limit, PDO::PARAM_INT);
+    $s->execute();
+    return $s->fetchAll() ?: [];
+}
+
+function seo_citation_engine_summary(): array
+{
+    seo_ensure_table();
+    $rows = db()->query(
+        "SELECT engine,
+                COUNT(*) AS total,
+                SUM(brand_mentioned) AS mentions,
+                AVG(accuracy_score)  AS avg_acc,
+                MAX(checked_at)      AS last_checked
+         FROM seo_ai_citations
+         GROUP BY engine"
+    )->fetchAll();
+    $byKey = [];
+    foreach ($rows as $r) {
+        $byKey[$r['engine']] = [
+            'total'        => (int)$r['total'],
+            'mentions'     => (int)$r['mentions'],
+            'mention_rate' => $r['total'] > 0 ? round(($r['mentions'] / $r['total']) * 100) : 0,
+            'avg_acc'      => round((float)$r['avg_acc']),
+            'last_checked' => $r['last_checked'],
+        ];
+    }
+    return $byKey;
+}
+
+function seo_citation_last_run_at(): ?string
+{
+    seo_ensure_table();
+    return db()->query('SELECT MAX(checked_at) FROM seo_ai_citations')->fetchColumn() ?: null;
+}
+

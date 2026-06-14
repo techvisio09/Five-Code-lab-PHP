@@ -38,7 +38,7 @@ $navItems = [
     'gateways'    => ['icon' => 'bi-credit-card-2-front','label' => 'API / Payment Gateway',  'href' => 'admin.php?tab=api&gw=toggles'],
     'smtp'        => ['icon' => 'bi-envelope-paper-heart','label' => 'SMTP / Mail Server', 'href' => 'admin.php?tab=smtp'],
     'regions'     => ['icon' => 'bi-globe',              'label' => 'Regions',            'href' => 'admin.php?tab=regions'],
-    'seo'         => ['icon' => 'bi-stars',              'label' => 'AI SEO Centre',      'href' => 'admin.php?tab=seo'],
+    'seo'         => ['icon' => 'bi-stars',              'label' => 'AI Auto-Blogger',    'href' => 'admin.php?tab=seo'],
     'settings'    => ['icon' => 'bi-gear',               'label' => 'Settings',           'href' => 'admin.php?tab=settings', 'hidden' => true],
 ];
 $adminActive = $adminActive ?? '';

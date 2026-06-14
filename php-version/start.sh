@@ -75,5 +75,16 @@ fi
   done
 ) &
 
+# 4b) Weekly AI citation tracker — every 7 days asks ChatGPT/Claude/Gemini/Copilot
+#     what they say about the brand and stores the answers for the admin
+#     dashboard.  Idempotent (just inserts a new run; never blocks).
+(
+  sleep 300
+  while true; do
+    /usr/bin/php /app/php-version/cron/citation-weekly.php >> /var/log/citation-weekly.log 2>&1
+    sleep 604800
+  done
+) &
+
 # 5) Serve the PHP store on port 3000
 exec env PHP_CLI_SERVER_WORKERS=8 php -S 0.0.0.0:3000 -t /app/php-version /app/php-version/router.php

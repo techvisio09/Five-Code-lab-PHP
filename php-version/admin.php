@@ -5864,6 +5864,16 @@ elseif ($tab === 'reviews'):
       }
   }
 
+  // Trigger the AI citation tracker run from the admin (limited batch)
+  $citationResult = null;
+  if (($_POST['action'] ?? '') === 'seo_citation_run_now') {
+      try {
+          $citationResult = seo_citation_run(5, 2); // 5 engines × 2 queries = 10 quick calls
+      } catch (Throwable $e) {
+          $citationResult = ['error' => $e->getMessage()];
+      }
+  }
+
   // Run the full SEO pipeline (LLM meta refresh + sitemap + IndexNow + auto-blog)
   $runResult = null;
   if (($_POST['action'] ?? '') === 'seo_run_now') {
@@ -5884,6 +5894,12 @@ elseif ($tab === 'reviews'):
   $pendingBlog = seo_ai_pending_alert_post();
   $cronCmd     = '0 4 * * *  /usr/bin/php ' . realpath(__DIR__) . '/cron/seo-daily.php >/var/log/seo-daily.log 2>&1';
   $webCronUrl  = rtrim(site_url(), '/') . '/cron/seo-daily.php?token=' . urlencode($cronTok);
+
+  // AI Citation Tracker stats
+  $citationByEngine = seo_citation_engine_summary();
+  $citationsRecent  = seo_citation_recent(15);
+  $citationLastAt   = seo_citation_last_run_at();
+  $citationEngines  = seo_citation_engines();
 
   // Human "X mins/hours ago" helper
   $ago = function (?int $s): string {
@@ -6178,7 +6194,17 @@ elseif ($tab === 'reviews'):
   <div class="ai-feed-card mb-3" data-testid="seo-live-feed">
     <div class="ai-feed-head">
       <h6><i class="bi bi-stars"></i>Live feed · all AI-published blog posts</h6>
-      <div class="sub"><?= (int)$aiBlogCount ?> post<?= $aiBlogCount === 1 ? '' : 's' ?> auto-published · markets: US · UK · AU · CA</div>
+      <div class="sub">
+        <?= (int)$aiBlogCount ?> post<?= $aiBlogCount === 1 ? '' : 's' ?> auto-published · markets: US · UK · AU · CA
+        <?php
+          $unread = (int)db()->query("SELECT COUNT(*) FROM seo_ai_blog_log WHERE acknowledged_at IS NULL")->fetchColumn();
+        ?>
+        <?php if ($unread === 0 && $aiBlogCount > 0): ?>
+          <span class="text-success ms-1" title="Every AI post has been reviewed"><i class="bi bi-check-circle-fill"></i> all reviewed</span>
+        <?php elseif ($unread > 0): ?>
+          <span class="text-warning ms-1" title="<?= $unread ?> AI post(s) await admin review"><i class="bi bi-exclamation-circle-fill"></i> <?= $unread ?> pending review</span>
+        <?php endif; ?>
+      </div>
     </div>
 
     <?php if (!$aiBlogs): ?>
@@ -6220,6 +6246,107 @@ elseif ($tab === 'reviews'):
     </div>
   </div>
 
+  <!-- ============ AI Citation Tracker ============ -->
+  <div class="ai-feed-card mb-3" data-testid="seo-citation-tracker" style="border-color:#bfdbfe;">
+    <div class="ai-feed-head" style="border-bottom-color:#bfdbfe;">
+      <h6 style="color:#1d4ed8;"><i class="bi bi-search-heart"></i>AI Citation Tracker · what AI engines say about your brand</h6>
+      <div class="sub">
+        <?php if ($citationLastAt): ?>
+          Last check: <?= esc(date('M j, Y · H:i', strtotime($citationLastAt) ?: time())) ?> UTC
+        <?php else: ?>
+          Never run — click below to ask the AI engines what they know about your brand
+        <?php endif; ?>
+      </div>
+    </div>
+
+    <!-- Per-engine summary cards -->
+    <div class="row g-2 mt-2 mb-1" data-testid="seo-citation-engines">
+      <?php foreach ($citationEngines as $e):
+        $s = $citationByEngine[$e['key']] ?? null;
+        $mentionRate = $s['mention_rate'] ?? null;
+        $accAvg = $s['avg_acc'] ?? null;
+        $statusColor = $mentionRate === null ? '#94a3b8' : ($mentionRate >= 60 ? '#16a34a' : ($mentionRate >= 30 ? '#f59e0b' : '#dc2626'));
+        $statusLabel = $mentionRate === null ? 'unchecked' : ($mentionRate >= 60 ? 'great' : ($mentionRate >= 30 ? 'partial' : 'missing'));
+      ?>
+        <div class="col-md-4 col-lg">
+          <div class="card-e p-3 h-100" data-testid="seo-citation-engine-<?= esc($e['key']) ?>" style="border-left:4px solid <?= $statusColor ?> !important;">
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <i class="bi <?= esc($e['icon']) ?>" style="color:<?= $statusColor ?>;font-size:18px;"></i>
+              <strong class="small"><?= esc($e['label']) ?></strong>
+              <span class="small ms-auto" style="color:<?= $statusColor ?>;font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:10px;"><?= esc($statusLabel) ?></span>
+            </div>
+            <?php if ($s): ?>
+              <div class="d-flex gap-3 small">
+                <div><div class="text-muted" style="font-size:10px;letter-spacing:.1em;">CITES BRAND</div><strong><?= (int)$mentionRate ?>%</strong> <small class="text-muted">(<?= (int)$s['mentions'] ?>/<?= (int)$s['total'] ?>)</small></div>
+                <div><div class="text-muted" style="font-size:10px;letter-spacing:.1em;">ACCURACY</div><strong><?= (int)$accAvg ?></strong><small class="text-muted">/100</small></div>
+              </div>
+            <?php else: ?>
+              <div class="small text-muted">Click "Run citation check" to query this engine.</div>
+            <?php endif; ?>
+          </div>
+        </div>
+      <?php endforeach; ?>
+    </div>
+
+    <!-- Run button -->
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3 mb-2">
+      <div class="small text-muted">
+        <i class="bi bi-info-circle me-1"></i>Asks each engine 2 buyer-style questions about your catalogue. Full run = 25 calls. <strong>Auto-scheduled weekly</strong> via cron.
+      </div>
+      <form method="post" class="d-inline">
+        <input type="hidden" name="action" value="seo_citation_run_now">
+        <button class="btn btn-sm rounded-pill px-3 fw-semibold" type="submit" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;border:none;" data-testid="seo-citation-run-now">
+          <i class="bi bi-arrow-clockwise me-1"></i>Run citation check
+        </button>
+      </form>
+    </div>
+
+    <?php if ($citationResult): ?>
+      <?php if (!empty($citationResult['error'])): ?>
+        <div class="alert alert-danger small py-2 my-2"><i class="bi bi-x-octagon me-1"></i><?= esc($citationResult['error']) ?></div>
+      <?php else: ?>
+        <div class="alert alert-success small py-2 my-2 mb-3" data-testid="seo-citation-result-ok">
+          <i class="bi bi-check-circle-fill me-1"></i><strong><?= (int)$citationResult['runs'] ?> queries</strong> completed across <?= count($citationEngines) ?> engines. Scroll down for results.
+        </div>
+      <?php endif; ?>
+    <?php endif; ?>
+
+    <!-- Recent citation responses -->
+    <?php if ($citationsRecent): ?>
+      <details class="mt-2 mb-2" data-testid="seo-citation-recent">
+        <summary class="small fw-bold text-muted" style="cursor:pointer;letter-spacing:.08em;">
+          <i class="bi bi-list-stars me-1"></i>View last <?= count($citationsRecent) ?> AI responses
+        </summary>
+        <div class="mt-3" style="max-height:520px;overflow-y:auto;">
+          <?php foreach ($citationsRecent as $c):
+            $eng = array_values(array_filter($citationEngines, fn($e) => $e['key'] === $c['engine']))[0] ?? null;
+            $sentColor = ['positive' => '#16a34a', 'neutral' => '#6b7280', 'negative' => '#dc2626'][$c['sentiment']] ?? '#6b7280';
+          ?>
+            <div class="border rounded p-3 mb-2" style="background:rgba(59,130,246,.04);border-color:#dbeafe !important;">
+              <div class="d-flex align-items-center gap-2 small mb-1 flex-wrap">
+                <strong><i class="bi <?= esc($eng['icon'] ?? 'bi-robot') ?>" style="color:#3b82f6;"></i> <?= esc($eng['label'] ?? $c['engine']) ?></strong>
+                <span class="text-muted">·</span>
+                <span class="text-muted"><?= esc(date('M j H:i', strtotime((string)$c['checked_at']) ?: time())) ?></span>
+                <span class="ms-auto d-inline-flex gap-2 small">
+                  <?php if ((int)$c['brand_mentioned']): ?>
+                    <span class="badge" style="background:#dcfce7;color:#166534;">✓ brand cited</span>
+                  <?php else: ?>
+                    <span class="badge" style="background:#fee2e2;color:#991b1b;">✗ not cited</span>
+                  <?php endif; ?>
+                  <span class="badge" style="background:rgba(<?= $sentColor === '#16a34a' ? '34,197,94' : ($sentColor === '#dc2626' ? '239,68,68' : '107,114,128') ?>,.15);color:<?= $sentColor ?>;text-transform:capitalize;"><?= esc($c['sentiment']) ?></span>
+                  <span class="badge text-bg-light"><?= (int)$c['product_mentions'] ?> products</span>
+                  <span class="badge text-bg-secondary-subtle"><?= (int)$c['accuracy_score'] ?>/100</span>
+                </span>
+              </div>
+              <div class="small fst-italic text-muted mb-1">"<?= esc($c['query_text']) ?>"</div>
+              <div class="small" style="white-space:pre-wrap;color:var(--text);"><?= esc($c['response_text']) ?></div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </details>
+    <?php endif; ?>
+  </div>
+
   <!-- ============ Manual triggers (collapsible) ============ -->
   <details class="card-e p-3 mb-3" data-testid="seo-manual-controls">
     <summary class="fw-bold small text-muted" style="cursor:pointer;letter-spacing:.06em;">
@@ -6236,9 +6363,12 @@ elseif ($tab === 'reviews'):
         <div class="small text-muted mt-2">Today's count: <strong><?= (int)$todayCount ?></strong> / <strong><?= (int)setting_get('seo_ai_daily_post_cap', 5) ?></strong> daily cap</div>
       </div>
       <div class="col-md-6">
-        <h6 class="fw-bold small text-uppercase text-muted" style="letter-spacing:.12em;font-size:10.5px;">External cron URL</h6>
+        <h6 class="fw-bold small text-uppercase text-muted" style="letter-spacing:.12em;font-size:10.5px;">External cron URL <small class="text-warning ms-1" title="Treat this URL like a password — it lets anyone trigger the SEO pipeline"><i class="bi bi-shield-lock-fill"></i> keep secret</small></h6>
         <p class="small text-muted mb-2">For shared hosting deployments — point any external scheduler at this URL (token-authenticated):</p>
-        <input class="form-control form-control-sm" readonly value="<?= esc($webCronUrl) ?>" style="font-family:ui-monospace,monospace;font-size:11.5px;" data-testid="seo-cron-url" onclick="this.select()">
+        <div class="input-group input-group-sm">
+          <input id="seoCronUrl" class="form-control form-control-sm" readonly value="<?= esc($webCronUrl) ?>" style="font-family:ui-monospace,monospace;font-size:11.5px;" data-testid="seo-cron-url" onclick="this.select()">
+          <button class="btn btn-outline-secondary btn-sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('seoCronUrl').value); this.querySelector('i').className='bi bi-check2'; setTimeout(()=>{ this.querySelector('i').className='bi bi-clipboard'; }, 1500); return false;" title="Copy" data-testid="seo-cron-url-copy"><i class="bi bi-clipboard"></i></button>
+        </div>
         <details class="mt-2">
           <summary class="small text-muted" style="cursor:pointer;">Or use server cron line</summary>
           <pre class="mt-2" style="background:#0f172a;color:#e2e8f0;padding:8px;border-radius:6px;font-size:11px;overflow:auto;"><?= esc($cronCmd) ?></pre>

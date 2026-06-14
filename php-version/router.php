@@ -13,6 +13,10 @@ if ($path === '/merchant-feed.xml') {
     require __DIR__ . '/merchant-feed.php';
     return true;
 }
+if ($path === '/robots.txt') {
+    require __DIR__ . '/robots-dynamic.php';
+    return true;
+}
 $file = __DIR__ . $path;
 if ($path !== '/' && file_exists($file) && !is_dir($file)) {
     return false; // let the built-in server handle real files (php, css, js, images)
