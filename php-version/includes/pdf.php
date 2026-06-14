@@ -262,6 +262,27 @@ function _pdf_shell(array $ctx, string $bodyHtml): string
     $logoUrl  = $ctx['logo']  ?? '';   // local file path is fine for Dompdf
     $docTitle = htmlspecialchars($ctx['title'] ?? 'Document',            ENT_QUOTES, 'UTF-8');
     $invNo    = htmlspecialchars($ctx['invoice_number'] ?? '',           ENT_QUOTES, 'UTF-8');
+
+    // Personalised greeting — extracted from the customer's first name.
+    // "Thank you, Jane!" on receipts; "Hello, Jane —" on invoices.
+    // Falls back to a friendly generic greeting when first_name is missing.
+    $firstName = trim((string)($ctx['first_name'] ?? ''));
+    // Defensive: drop anything that looks like a country code, postcode, or short token
+    if ($firstName !== '' && (mb_strlen($firstName) < 2 || preg_match('/[\d@]/', $firstName))) {
+        $firstName = '';
+    }
+    $firstName = htmlspecialchars($firstName, ENT_QUOTES, 'UTF-8');
+    $isReceipt = stripos($docTitle, 'receipt') !== false;
+    if ($firstName !== '') {
+        $greetingLine = $isReceipt
+            ? 'Thank you, ' . $firstName . '!'
+            : 'Hello, ' . $firstName . ' &mdash;';
+    } else {
+        $greetingLine = $isReceipt ? 'Thank you for your purchase!' : 'Here is your invoice';
+    }
+    $greetingSub = $isReceipt
+        ? 'Your license keys are delivered in the accompanying email — keep this receipt for your records.'
+        : 'A quick summary of what you ordered. Once paid, your license keys arrive in 15–30 minutes.';
     $secondRow= '';
     if (!empty($ctx['receipt_number'])) {
         $secondRow .= '<tr><td>Receipt number</td><td class="r">' . htmlspecialchars($ctx['receipt_number'], ENT_QUOTES, 'UTF-8') . '</td></tr>';
@@ -295,6 +316,24 @@ function _pdf_shell(array $ctx, string $bodyHtml): string
   h1.doc-title { font-size: 28pt; font-weight: 800; margin: 0 0 6px; color: #003087; letter-spacing: -.4px; }
   .doc-title-rule { width: 56px; height: 4px; background: #FFC439; border-radius: 2px; margin: 0 0 18px; }
   .doc-sub { font-size: 8pt; letter-spacing: 1.4px; text-transform: uppercase; font-weight: 700; color: #6c7378; margin: 0 0 4px; }
+
+  /* Personalised greeting strip — sits just under the gold rule */
+  .greeting-line {
+    margin: 0 0 22px;
+    padding: 0 0 0 0;
+    font-size: 13pt;
+    color: #003087;
+    font-weight: 700;
+    letter-spacing: -.1px;
+  }
+  .greeting-line .greeting-emoji { color: #FFC439; margin-right: 2px; }
+  .greeting-sub {
+    font-size: 9.5pt;
+    color: #6c7378;
+    margin: -16px 0 22px;
+    line-height: 1.5;
+    max-width: 70%;
+  }
 
   .head-grid { width: 100%; border-collapse: collapse; margin-bottom: 26px; }
   .head-grid td { vertical-align: top; }
@@ -364,6 +403,8 @@ function _pdf_shell(array $ctx, string $bodyHtml): string
     <div class="doc-sub">{$brand}</div>
     <h1 class="doc-title">{$docTitle}</h1>
     <div class="doc-title-rule"></div>
+    <p class="greeting-line"><span class="greeting-emoji">✦</span> {$greetingLine}</p>
+    <p class="greeting-sub">{$greetingSub}</p>
   </div>
   <table class="head-grid"><tr>
     <td class="head-meta">
@@ -458,7 +499,7 @@ function generate_receipt_pdf(array $order, array $items, ?array $payment = null
 
     $bodyHtml = '<div class="amount-banner">
                     <div class="amt">' . _pdf_money($total, $cur) . ' paid on ' . htmlspecialchars($datePaid, ENT_QUOTES, 'UTF-8') . '</div>
-                    <div class="sub">Thanks for your purchase — your license keys are delivered in the accompanying email.</div>
+                    <div class="sub">Payment confirmed. Your license keys are on the way via email.</div>
                  </div>'
               . $itemsHtml
               . '<table class="totals">
@@ -478,6 +519,7 @@ function generate_receipt_pdf(array $order, array $items, ?array $payment = null
         'receipt_number'  => $receiptNo,
         'date_paid'       => $datePaid,
         'bill_to'         => $billTo,
+        'first_name'      => (string)($order['first_name'] ?? ''),
     ], $bodyHtml);
 
     $dompdf = _pdf_dompdf();
@@ -564,6 +606,7 @@ function generate_invoice_pdf(array $order, array $items): string
         'date_issued'     => $dateIssued,
         'date_due'        => $dateDue,
         'bill_to'         => $billTo,
+        'first_name'      => (string)($order['first_name'] ?? ''),
     ], $bodyHtml);
 
     $dompdf = _pdf_dompdf();
